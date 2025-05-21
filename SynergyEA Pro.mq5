@@ -2,8 +2,9 @@
 //|                                       Synergy_Strategy_v1.03.mq5 |
 //|  Streamlined Synergy Strategy + PropEA‑style Hedge Engine (port) |
 //|                                                                  |
-//|  CHANGE LOG (v1.03 – 20‑May‑2025)                                |
+//|  CHANGE LOG (v1.04 – 20‑May‑2025)                                |
 //|   • Added BARS_REQUIRED constant and warm‑up guard               |
+//|   • Warm-up now includes longest indicator periods               |
 //|   • Robust history copying & buffer guards (no array overflow)   |
 //|   • Re‑implemented pivot‑scan functions with bounds checks       |
 //|   • Safe CopyBuffer calls with early return on incomplete data   |
@@ -14,7 +15,7 @@
 //+------------------------------------------------------------------+
 #property copyright "t2an1s"
 #property link      "http://www.yourwebsite.com"
-#property version   "1.03"
+#property version   "1.04"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -1037,8 +1038,17 @@ int OnInit()
    ArraySetAsSeries(TimeSeries, true);
 
    // Compute dynamic history requirement
+   // We must ensure enough bars for the longest indicators (e.g. 200 period MA)
+   int warmupSynergy  = 200;                        // slowest MA period used
+   int warmupADX      = ADXPeriod + ADXLookbackPeriod; // ADX lookback requirement
+   int warmupBias     = HeikinAshiPeriod + 1;          // HA bias lookback
+
    BARS_REQUIRED = MathMax(PivotTPBars + PivotLengthLeft + PivotLengthRight + 5, 100);
-   Print("History warm-up requirement set to ",BARS_REQUIRED," bars");   
+   BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupSynergy);
+   BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupADX);
+   BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupBias);
+
+   Print("History warm-up requirement set to ",BARS_REQUIRED," bars");
    
    // Create dashboard 
    CreateDashboard();
