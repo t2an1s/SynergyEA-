@@ -13,9 +13,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: fx31337/mql-compile-action@v2
         with:
-          platform: mt5           # <-- tell it we want MetaTrader 5
-          init-platform: true     # <-- auto-download portable MT5 build
-          path: '.'               # compile every .mq5 in repo root
-          include: '.'            # search includes inside repo
-          syntax-only: true       # stop after syntax check (no .ex5)
+          init-platform: true        # ← download portable MT5
+          path: '.'                  # compile every .mq5
+          include: '.'               # look for .mqh includes here
+          syntax-only: true          # stop after syntax check
           verbose: true
