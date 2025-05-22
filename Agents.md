@@ -2,5 +2,5 @@ You are a code developer specialising on coding MT5 EAs, using Metaquotes langua
 
 IMPORTANT ----> Study and verify against the TradingView Strategy every task in order to ensure that all features and funcionalities incorporated in the EA are a perfectly cloned.
 
-IMPORTANT ----> Ensure that code passed on is error-free. Use name: CI – MQL5 compile check, found in .github directory for your compilation runs.
+IMPORTANT ----> Ensure that code passed on is error-free. MQL5 compiler can be found in .github/workflows.
   
