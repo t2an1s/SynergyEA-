@@ -1,10 +1,12 @@
 The project is focused on developing a Metatrader 5 EA, a spin off of my TradingView Strategy (see SourceCode.txt for full script). 
 
-Your task is to analyse the SourceCode and craft an MT5 EA which will be an exact copy of the TradingView Strategy. 
+Your task is to analyse the SourceCode and craft an MT5 EA which will be an exact copy of the TradingView Strategy.  
 
 The end goal is to have 1 main EA MarketCrasherProp.mq5, controlling the open trade triggers (Synergy Score and Market Bias), entry/exit logic, as well as the Hedhging mechanics will be attached to the MT5 prop firm account, and a second complementary EA MarketCrasherLive.mq5, which is acting as a "bridge" to the live/Hedged MT5 account and is managing the opposite trade. 
 
 Be critical, meticulous when coding and creative at troubleshooting. 
+
+Go through line by line the SourceCode and port them one by one to MQL5.
 
 NOTE: Avoid marking with arrows <<<<<<< or ====== (see example below) the code you deliver as it causes headaches when it comes to merge script in github.
 
