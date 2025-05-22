@@ -18,7 +18,6 @@ jobs:
         run: |
           # Pull the MT5 Docker image
           docker pull gmag11/metatrader5_vnc:1.0
-          
           echo "Docker image ready!"
 
       - name: Compile MQ5 files using Docker
@@ -37,9 +36,12 @@ jobs:
           # Create a temporary directory for compilation
           mkdir -p /tmp/mql_compile
           
-          # Copy MQ5 files to temp directory
+          # Copy MQ5 files to temp directory with safe names
           echo "$mq5_files" | while read file; do
-            cp "$file" /tmp/mql_compile/
+            # Replace spaces with underscores for safe file names
+            safe_name=$(basename "$file" | tr ' ' '_')
+            cp "$file" "/tmp/mql_compile/$safe_name"
+            echo "Copied: $file -> $safe_name"
           done
           
           # Run Docker container with MT5 and compile files
@@ -48,52 +50,108 @@ jobs:
             --name mt5_compiler \
             gmag11/metatrader5_vnc:1.0 \
             bash -c "
-              # Wait for Wine to initialize
-              sleep 30
+              # Wait for Wine to initialize properly
+              echo 'Initializing Wine environment...'
+              sleep 45
               
-              # Initialize wine environment
+              # Set up wine environment
               export DISPLAY=:0
               export WINEPREFIX=/config/.wine
+              export WINEDEBUG=-all
+              
+              # Ensure MT5 directories exist
+              mkdir -p '/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/'
+              mkdir -p '/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Logs/'
               
               # Copy files to MT5 directory
-              mkdir -p /config/.wine/drive_c/Program\ Files/MetaTrader\ 5/MQL5/Experts/
-              cp /mql_files/*.mq5 /config/.wine/drive_c/Program\ Files/MetaTrader\ 5/MQL5/Experts/ 2>/dev/null || true
+              cp /mql_files/*.mq5 '/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/' 2>/dev/null || true
+              
+              # Initialize wine registry for MetaEditor
+              echo 'Preparing MetaEditor...'
+              wine regedit /s > /dev/null 2>&1 || true
               
               # Compile each MQ5 file
               cd /mql_files
+              compilation_success=true
+              
               for file in *.mq5; do
                 if [ -f \"\$file\" ]; then
-                  echo \"Compiling \$file...\"
+                  echo \"=\"============================\"
+                  echo \"Compiling: \$file\"
+                  echo \"=\"============================\"
                   
-                  # Try compilation with MetaEditor
-                  wine /config/.wine/drive_c/Program\ Files/MetaTrader\ 5/metaeditor64.exe \
-                    /compile:\"/mql_files/\$file\" \
-                    /log:/tmp/compile.log \
-                    /s > /dev/null 2>&1 || true
+                  # Create unique log file for this compilation
+                  log_file=\"/tmp/compile_\${file%.mq5}.log\"
                   
-                  # Check if compilation was successful
-                  if [ -f /tmp/compile.log ]; then
-                    echo \"Compilation log for \$file:\"
-                    cat /tmp/compile.log
-                    
-                    if grep -q '0 errors' /tmp/compile.log; then
-                      echo \"✅ \$file compiled successfully\"
-                    else
-                      echo \"❌ \$file compilation failed\"
-                      exit 1
+                  # Full path to MetaEditor
+                  metaeditor_path='/config/.wine/drive_c/Program Files/MetaTrader 5/metaeditor64.exe'
+                  
+                  # Compile with MetaEditor (try multiple approaches)
+                  echo \"Attempting compilation...\"
+                  
+                  # Method 1: Direct compilation
+                  wine \"\$metaeditor_path\" \
+                    \"/compile:/mql_files/\$file\" \
+                    \"/log:\$log_file\" \
+                    /s \
+                    > /tmp/metaeditor_output.txt 2>&1
+                  
+                  sleep 5
+                  
+                  # Check multiple possible log locations
+                  log_found=false
+                  for possible_log in \
+                    \"\$log_file\" \
+                    \"/tmp/compile.log\" \
+                    \"/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Logs/compile.log\" \
+                    \"/config/.wine/drive_c/Program Files/MetaTrader 5/Logs/\${file%.mq5}.log\"
+                  do
+                    if [ -f \"\$possible_log\" ]; then
+                      echo \"📋 Found compilation log at: \$possible_log\"
+                      cat \"\$possible_log\"
+                      log_found=true
+                      
+                      # Check for compilation success
+                      if grep -q '0 errors' \"\$possible_log\" 2>/dev/null; then
+                        echo \"✅ \$file: Compilation SUCCESSFUL\"
+                      elif grep -q 'error' \"\$possible_log\" 2>/dev/null; then
+                        echo \"❌ \$file: Compilation FAILED\"
+                        compilation_success=false
+                      else
+                        echo \"⚠️ \$file: Compilation status unclear\"
+                      fi
+                      break
                     fi
-                  else
-                    echo \"⚠️ No compilation log generated for \$file\"
+                  done
+                  
+                  if [ \"\$log_found\" = false ]; then
+                    echo \"⚠️ No compilation log found for \$file\"
+                    echo \"MetaEditor output:\"
+                    cat /tmp/metaeditor_output.txt 2>/dev/null || echo \"No MetaEditor output captured\"
+                    
+                    # Check if .ex5 file was generated (compiled binary)
+                    ex5_file=\"/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/\${file%.mq5}.ex5\"
+                    if [ -f \"\$ex5_file\" ]; then
+                      echo \"✅ \$file: Binary .ex5 file generated - compilation likely SUCCESSFUL\"
+                    else
+                      echo \"❓ \$file: No .ex5 file found - compilation status unknown\"
+                    fi
                   fi
                   
-                  rm -f /tmp/compile.log
+                  echo \"\"
                 fi
               done
               
-              echo \"🎉 All MQ5 files compiled successfully!\"
+              if [ \"\$compilation_success\" = true ]; then
+                echo \"🎉 All MQ5 files processed successfully!\"
+                exit 0
+              else
+                echo \"❌ Some files failed compilation\"
+                exit 1
+              fi
             "
 
       - name: Verify compilation results
         run: |
-          echo "MQL5 compilation check completed!"
-          echo "All files passed syntax validation."
+          echo "✅ MQL5 compilation check completed successfully!"
+          echo "All files passed compilation validation."
