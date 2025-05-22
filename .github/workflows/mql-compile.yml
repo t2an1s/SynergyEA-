@@ -1,22 +1,25 @@
-name: CI – MQL5 compile check
+name: CI – MQL5 compile check                # appears in the Actions tab
 
 on:
-  workflow_dispatch:        # manual button
-  pull_request:             # run on PRs that touch .mq5
+  workflow_dispatch:                         # manual “Run workflow” button
+  pull_request:                              # runs on any PR that touches an .mq5
     paths:
       - '**/*.mq5'
 
 jobs:
   compile:
-    runs-on: windows-latest
+    runs-on: windows-latest                  # Microsoft-hosted Windows VM
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - uses: fx31337/mql-compile-action@v2
+      - name: Compile all MQ5 files
+        uses: fx31337/mql-compile-action@v2
         with:
-          init-platform: true        # download portable MT5
-          mt-path: mt5-platform      # <─ where to put it (relative path)
-          path: '.'                  # compile every .mq5 in repo
-          include: '.'               # look for .mqh includes here
-          syntax-only: true          # just a syntax check
-          verbose: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}  # ← leave exactly like this
+          init-platform: true        # download & unpack portable MT5 build
+          mt-path: mt5-platform      # directory (relative) where MT5 is placed
+          path: '.'                  # compile every .mq5 in the repo
+          include: '.'               # look for .mqh includes inside the repo
+          syntax-only: true          # just check syntax (skip .ex5 artifacts)
+          verbose: true              # show full MetaEditor output
