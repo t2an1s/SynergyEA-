@@ -4,27 +4,12 @@ The two working files/EAs are: 1. SynergyEAPro.mq5, which is the main EA, holdin
 
 Be critical, meticulous when coding and creative at troubleshooting. 
 
-Avoid adding these markings (arrows <<<<<<< or equals ======) in the code you deliver as it causes headaches when it comes to merge script in github.
+NOTE: Avoid marking with arrows <<<<<<< or ====== (see example below) the code you deliver as it causes headaches when it comes to merge script in github.
 
 <<<<<<< 6i061f-codex/fix-synergy-score-and-pivot-issues
-      " Short TP:", DoubleToString(tpShort, 5));
-   }
-
-   // Redraw pivot visuals with latest levels
-   if(ShowPivotLines)
-      DrawPivotLines();
-
-}
+      
 =======
 
-      " Short TP:", DoubleToString(tpShort, 5));
-   }
-
-   // Redraw pivot visuals with latest levels
-   if(ShowPivotLines)
-      DrawPivotLines();
-
-}
 >>>>>>> main
 
 
