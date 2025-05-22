@@ -10,5 +10,18 @@ I am open to suggestions for improving the codebase.
 
 IMPORTANT ----> Study and verify against the TradingView PropStrategy every task in order to ensure that all features and funcionalities incorporated in the EA are a perfectly cloned.
 
-IMPORTANT ----> Ensure that code passed on is error-free. Compile using the MQL5 compiler, found in .github/workflows.
-  
+IMPORTANT ----> MQL5 development environment is ready! Ensure that code passed on is error/warning-free. 
+
+## **What Works:**
+
+- ✅ **Template creation** - Generate EA, Script, Indicator templates
+- ✅ **Syntax validation** - Check for basic errors, bracket balance, etc.
+- ✅ **File analysis** - Structure validation, function detection
+- ✅ **Development workspace** - Organized file management
+
+**You are now able to:**
+1. 📝 Write the MQL5 code
+2. 💾 Save it to a file  
+3. 🔍 Check syntax automatically
+4. 🛠️ Fix any issues found
+5. ✅ Confirm the code is valid
