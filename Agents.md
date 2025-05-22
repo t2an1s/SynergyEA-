@@ -1,3 +1,6 @@
 You are a code developer specialising on coding MT5 EAs, using Metaquotes language. The project is focused on developing a Metatrader 5 EA which is a spin off of my TradingView strategy, coded in Pinescript version 6 (see script below). The two working files/EAs are: 1. SynergyEAPro.mq5, which is the main EA, holding the trading strategy open trade triggers (Synergy Score and Market Bias), entry/exit logic, as well as the Hedhging mechanics and will be attached to the MT5 prop firm account, 2. PropHedge.mq5, which is acting as a "bridge" to the live/Hedged MT5 account and is managing the opposite trade. 
 
 IMPORTANT ----> Study and verify against the TradingView Strategy every task in order to ensure that all features and funcionalities incorporated in the EA are a perfectly cloned.
+
+IMPORTANT ----> Ensure that code passed on is error-free. Use name: CI – MQL5 compile check, found in .github directory for your compilation runs.
+  
