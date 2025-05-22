@@ -6,7 +6,10 @@
 //|   • Added BARS_REQUIRED constant and warm‑up guard               |
 //|   • Warm-up now includes longest indicator periods               |
 //|   • Force-load history for Synergy indicators across timeframes  |
-//|   • Extra debug output when Synergy Score can't be calculated     |
+//|   • Extra debug output when Synergy Score can't be calculated    |
+//|  CHANGE LOG (v1.04 – 20‑May‑2025)                                |
+//|   • Added BARS_REQUIRED constant and warm‑up guard               |
+//|   • Warm-up now includes longest indicator periods               |
 //|   • Robust history copying & buffer guards (no array overflow)   |
 //|   • Re‑implemented pivot‑scan functions with bounds checks       |
 //|   • Safe CopyBuffer calls with early return on incomplete data   |
@@ -18,6 +21,7 @@
 #property copyright "t2an1s"
 #property link      "http://www.yourwebsite.com"
 #property version   "1.05"
+#property version   "1.04"
 #property strict
 
 #include <Trade\Trade.mqh>
