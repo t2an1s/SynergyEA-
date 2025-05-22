@@ -1,21 +1,19 @@
 name: CI – MQL5 compile check
 
 on:
-  push:
-    paths: ['**/*.mq5']     # run only when .mq5 files change
-  pull_request:
-    paths: ['**/*.mq5']
+  workflow_dispatch:      # manual trigger button
+  pull_request:           # runs when a PR is opened/updated
+    paths:
+      - '**/*.mq5'
 
 jobs:
   compile:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      # one-liner that downloads MT5, calls MetaEditor, parses log
       - uses: fx31337/mql-compile-action@v2
         with:
-          path: '.'          # compile every .mq5 under repo root
-          include: '.'       # search includes inside repo
-          syntax-only: true  # fail fast, don’t keep .ex5 artefacts
+          path: '.'
+          include: '.'
+          syntax-only: true
           verbose: true
