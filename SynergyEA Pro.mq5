@@ -26,6 +26,7 @@
 
 #include <Trade\Trade.mqh>
 #include <Arrays\ArrayObj.mqh>
+#include "Log.mqh"
 CTrade trade;
 
 //────────────────────────────────────────────────────────────────────
@@ -94,6 +95,7 @@ input int       Magic_Number = 123456;                 // Magic Number
 input bool      EnableTrading = true;                  // Enable Trading
 input bool      TestingMode = false;                   // Strategy Tester Mode
 input int       SlippagePoints = 10;                   // Max slippage (points)
+input ENUM_LOG_LEVEL LogVerbosity = LOG_IMPORTANT;     // Control logging verbosity
 
 //+------------------------------------------------------------------+
 //| Input Parameters - Visualization Settings                         |
@@ -265,7 +267,7 @@ void SendHeartbeat(bool isPropSide)
       // Periodically print debug info
       static datetime lastPrintTime = 0;
       if(TimeCurrent() - lastPrintTime > 60) {
-         Print("Main EA heartbeat sent: ", name, " = ", TimeToString((datetime)currentTime));
+         LogImportant("Main EA heartbeat sent: ", name, " = ", TimeToString((datetime)currentTime));
          lastPrintTime = TimeCurrent();
       }
    }
@@ -290,7 +292,7 @@ void SendHeartbeat(bool isPropSide)
          // Report success with lower frequency to avoid log spam
          static datetime lastReport = 0;
          if(TimeCurrent() - lastReport > 60) {  // Report once per minute
-            Print("✅ Main EA heartbeat sent to file: ", HEARTBEAT_FILE_PATH);
+            LogImportant("✅ Main EA heartbeat sent to file: ", HEARTBEAT_FILE_PATH);
             lastReport = TimeCurrent();
          }
       }
@@ -299,7 +301,7 @@ void SendHeartbeat(bool isPropSide)
          int error = GetLastError();
          static datetime lastErrorReport = 0;
          if(TimeCurrent() - lastErrorReport > 30) { // Report errors every 30 seconds
-            Print("❌ ERROR: Failed to write heartbeat file: ", error, " (", GetErrorDescription(error), ")");
+            LogError("Failed to write heartbeat file: ", error, " (", GetErrorDescription(error), ")");
             lastErrorReport = TimeCurrent();
          }
       }
@@ -324,7 +326,7 @@ bool IsLinkAlive(bool isPropSide)
       if(!GlobalVariableCheck(peer)) {
          static datetime lastErrorTime = 0;
          if(TimeCurrent() - lastErrorTime > 60) {
-            Print("ERROR: Hedge heartbeat not found: ", peer);
+            LogError("Hedge heartbeat not found: ", peer);
             lastErrorTime = TimeCurrent();
          }
          return false;
@@ -336,7 +338,7 @@ bool IsLinkAlive(bool isPropSide)
       // Log periodic status
       static datetime lastStatusTime = 0;
       if(TimeCurrent() - lastStatusTime > 60) {
-         Print("Hedge link status: ", isAlive ? "ALIVE" : "DEAD", 
+         LogImportant("Hedge link status: ", isAlive ? "ALIVE" : "DEAD", 
                " (Last beat: ", TimeToString((datetime)ts), 
                ", Age: ", TimeCurrent() - (datetime)ts, "s)");
          lastStatusTime = TimeCurrent();
@@ -351,7 +353,7 @@ bool IsLinkAlive(bool isPropSide)
       {
          static datetime lastErrorReport = 0;
          if(TimeCurrent() - lastErrorReport > 30) {  // Report every 30 seconds
-            Print("WARNING: Hedge heartbeat file not found: ", HEDGE_HEARTBEAT_FILE_PATH);
+            LogWarning("Hedge heartbeat file not found: ", HEDGE_HEARTBEAT_FILE_PATH);
             lastErrorReport = TimeCurrent();
          }
          return false;
@@ -360,7 +362,7 @@ bool IsLinkAlive(bool isPropSide)
       int fileHandle = FileOpen(HEDGE_HEARTBEAT_FILE_PATH, FILE_READ|FILE_TXT|FILE_COMMON);
       if(fileHandle == INVALID_HANDLE)
       {
-         Print("ERROR: Unable to open hedge heartbeat file. Error: ", GetLastError());
+         LogError("Unable to open hedge heartbeat file. Error: ", GetLastError());
          return false;
       }
       
@@ -376,7 +378,7 @@ bool IsLinkAlive(bool isPropSide)
       {
          static datetime lastFormatError = 0;
          if(TimeCurrent() - lastFormatError > 60) {  // Only log format errors once per minute
-            Print("ERROR: Invalid hedge heartbeat format: ", content);
+            LogError("Invalid hedge heartbeat format: ", content);
             lastFormatError = TimeCurrent();
          }
          return false;
@@ -385,7 +387,7 @@ bool IsLinkAlive(bool isPropSide)
       // Check if magic number matches
       if(parts[1] != IntegerToString(HedgeEA_Magic))
       {
-         Print("ERROR: Hedge heartbeat has incorrect magic number: ", parts[1], 
+         LogError("Hedge heartbeat has incorrect magic number: ", parts[1],
                " expected: ", HedgeEA_Magic);
          return false;
       }
@@ -407,7 +409,7 @@ bool IsLinkAlive(bool isPropSide)
             
             if(isAlive != wasAlive || TimeCurrent() - lastStatusLog > 60)
             {
-               Print("Hedge link status: ", isAlive ? "ALIVE" : "DEAD", 
+               LogImportant("Hedge link status: ", isAlive ? "ALIVE" : "DEAD", 
                      " (Last heartbeat: ", TimeToString(heartbeatTime), 
                      ", Age: ", ageSeconds, "s)");
                lastStatusLog = TimeCurrent();
@@ -418,13 +420,13 @@ bool IsLinkAlive(bool isPropSide)
          }
          else
          {
-            Print("ERROR: Invalid timestamp value: ", timestampString, " parsed as ", heartbeatTime);
+            LogError("Invalid timestamp value: ", timestampString, " parsed as ", heartbeatTime);
             return false;
          }
       }
       else
       {
-         Print("ERROR: Empty timestamp string in heartbeat");
+         LogError("Empty timestamp string in heartbeat");
          return false;
       }
    }
@@ -435,7 +437,7 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    // STRICT PIVOT VALIDATION - NO TRADE IF INVALID
    if(sl <= 0 || tp <= 0)
    {
-      Print("❌ OpenTrade ABORTED: Invalid pivot levels - SL:", DoubleToString(sl, 5), " TP:", DoubleToString(tp, 5));
+      LogImportant("❌ OpenTrade ABORTED: Invalid pivot levels - SL:", DoubleToString(sl, 5), " TP:", DoubleToString(tp, 5));
       return;
    }
    
@@ -446,10 +448,10 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    {
       if(sl >= currentPrice || tp <= currentPrice)
       {
-         Print("❌ LONG Trade ABORTED: Invalid pivot relationship");
-         Print("   Current Price: ", DoubleToString(currentPrice, 5));
-         Print("   Pivot SL: ", DoubleToString(sl, 5), " (must be < current)");
-         Print("   Pivot TP: ", DoubleToString(tp, 5), " (must be > current)");
+         LogImportant("❌ LONG Trade ABORTED: Invalid pivot relationship");
+         LogImportant("   Current Price: ", DoubleToString(currentPrice, 5));
+         LogImportant("   Pivot SL: ", DoubleToString(sl, 5), " (must be < current)");
+         LogImportant("   Pivot TP: ", DoubleToString(tp, 5), " (must be > current)");
          return;
       }
    }
@@ -457,10 +459,10 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    {
       if(sl <= currentPrice || tp >= currentPrice)
       {
-         Print("❌ SHORT Trade ABORTED: Invalid pivot relationship");
-         Print("   Current Price: ", DoubleToString(currentPrice, 5));
-         Print("   Pivot SL: ", DoubleToString(sl, 5), " (must be > current)");
-         Print("   Pivot TP: ", DoubleToString(tp, 5), " (must be < current)");
+         LogImportant("❌ SHORT Trade ABORTED: Invalid pivot relationship");
+         LogImportant("   Current Price: ", DoubleToString(currentPrice, 5));
+         LogImportant("   Pivot SL: ", DoubleToString(sl, 5), " (must be > current)");
+         LogImportant("   Pivot TP: ", DoubleToString(tp, 5), " (must be < current)");
          return;
       }
    }
@@ -471,24 +473,24 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    double askPrice = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
    double bidPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
    
-   Print("=== PIVOT TRADE VALIDATION ===");
-   Print("Current Ask: ", DoubleToString(askPrice, 5), " Bid: ", DoubleToString(bidPrice, 5));
-   Print("Min Stop Distance: ", DoubleToString(minDist, 5), " (", stopPts, " points)");
-   Print("Requested SL: ", DoubleToString(sl, 5));
-   Print("Requested TP: ", DoubleToString(tp, 5));
+   LogImportant("=== PIVOT TRADE VALIDATION ===");
+   LogImportant("Current Ask: ", DoubleToString(askPrice, 5), " Bid: ", DoubleToString(bidPrice, 5));
+   LogImportant("Min Stop Distance: ", DoubleToString(minDist, 5), " (", stopPts, " points)");
+   LogImportant("Requested SL: ", DoubleToString(sl, 5));
+   LogImportant("Requested TP: ", DoubleToString(tp, 5));
    
    if(isLong)
    {
       double slDist = askPrice - sl;
       double tpDist = tp - askPrice;
-      Print("LONG distances - SL: ", DoubleToString(slDist, 5), " TP: ", DoubleToString(tpDist, 5));
+      LogImportant("LONG distances - SL: ", DoubleToString(slDist, 5), " TP: ", DoubleToString(tpDist, 5));
       
       if(slDist < minDist || tpDist < minDist)
       {
-         Print("❌ LONG Trade ABORTED: Pivot levels don't meet broker minimum stop distance");
-         Print("   Required min distance: ", DoubleToString(minDist, 5));
-         Print("   SL distance: ", DoubleToString(slDist, 5), " (", slDist >= minDist ? "OK" : "TOO CLOSE", ")");
-         Print("   TP distance: ", DoubleToString(tpDist, 5), " (", tpDist >= minDist ? "OK" : "TOO CLOSE", ")");
+         LogImportant("❌ LONG Trade ABORTED: Pivot levels don't meet broker minimum stop distance");
+         LogImportant("   Required min distance: ", DoubleToString(minDist, 5));
+         LogImportant("   SL distance: ", DoubleToString(slDist, 5), " (", slDist >= minDist ? "OK" : "TOO CLOSE", ")");
+         LogImportant("   TP distance: ", DoubleToString(tpDist, 5), " (", tpDist >= minDist ? "OK" : "TOO CLOSE", ")");
          return;
       }
    }
@@ -496,14 +498,14 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    {
       double slDist = sl - bidPrice;
       double tpDist = bidPrice - tp;
-      Print("SHORT distances - SL: ", DoubleToString(slDist, 5), " TP: ", DoubleToString(tpDist, 5));
+      LogImportant("SHORT distances - SL: ", DoubleToString(slDist, 5), " TP: ", DoubleToString(tpDist, 5));
       
       if(slDist < minDist || tpDist < minDist)
       {
-         Print("❌ SHORT Trade ABORTED: Pivot levels don't meet broker minimum stop distance");
-         Print("   Required min distance: ", DoubleToString(minDist, 5));
-         Print("   SL distance: ", DoubleToString(slDist, 5), " (", slDist >= minDist ? "OK" : "TOO CLOSE", ")");
-         Print("   TP distance: ", DoubleToString(tpDist, 5), " (", tpDist >= minDist ? "OK" : "TOO CLOSE", ")");
+         LogImportant("❌ SHORT Trade ABORTED: Pivot levels don't meet broker minimum stop distance");
+         LogImportant("   Required min distance: ", DoubleToString(minDist, 5));
+         LogImportant("   SL distance: ", DoubleToString(slDist, 5), " (", slDist >= minDist ? "OK" : "TOO CLOSE", ")");
+         LogImportant("   TP distance: ", DoubleToString(tpDist, 5), " (", tpDist >= minDist ? "OK" : "TOO CLOSE", ")");
          return;
       }
    }
@@ -512,27 +514,27 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    double finalSL = NormalizeDouble(sl, _Digits);
    double finalTP = NormalizeDouble(tp, _Digits);
    
-   Print("✅ PIVOT LEVELS VALIDATED - Proceeding with trade");
-   Print("   Final SL: ", DoubleToString(finalSL, 5));
-   Print("   Final TP: ", DoubleToString(finalTP, 5));
+   LogImportant("✅ PIVOT LEVELS VALIDATED - Proceeding with trade");
+   LogImportant("   Final SL: ", DoubleToString(finalSL, 5));
+   LogImportant("   Final TP: ", DoubleToString(finalTP, 5));
 
    //––– Calculate lot size
    double slPips = MathAbs(currentPrice - finalSL) / GetPipSize();
    
-   Print("=== LOT SIZE CALCULATION ===");
-   Print("OpenTrade: UseFixedLot=", UseFixedLot, ", FixedLotSize=", FixedLotSize, ", RiskPercent=", RiskPercent);
+   LogImportant("=== LOT SIZE CALCULATION ===");
+   LogImportant("OpenTrade: UseFixedLot=", UseFixedLot, ", FixedLotSize=", FixedLotSize, ", RiskPercent=", RiskPercent);
    
    double rawLots;
    if(UseFixedLot) {
       rawLots = FixedLotSize;
-      Print("Using fixed lot size: ", FixedLotSize);
+      LogImportant("Using fixed lot size: ", FixedLotSize);
    } else {
       rawLots = CalculatePositionSize(slPips, RiskPercent);
-      Print("Using risk-based lot size: ", rawLots, " (SL pips: ", slPips, ", Risk%: ", RiskPercent, ")");
+      LogImportant("Using risk-based lot size: ", rawLots, " (SL pips: ", slPips, ", Risk%: ", RiskPercent, ")");
    }
    
    double lots = NormalizeLots(rawLots);
-   Print("Final normalized lot size: ", lots);
+   LogImportant("Final normalized lot size: ", lots);
 
    //––– Calculate hedge volume
    double lotLive = NormalizeLots(lots * hedgeFactor);
@@ -542,12 +544,12 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    hedgeLotsLast = lotLive;
 
    //––– Place main order with EXACT pivot levels
-   Print("=== EXECUTING TRADE ===");
-   Print("Direction: ", isLong ? "LONG" : "SHORT");
-   Print("Volume: ", DoubleToString(lots, 2));
-   Print("Entry: ~", DoubleToString(isLong ? askPrice : bidPrice, 5));
-   Print("Stop Loss: ", DoubleToString(finalSL, 5));
-   Print("Take Profit: ", DoubleToString(finalTP, 5));
+   LogImportant("=== EXECUTING TRADE ===");
+   LogImportant("Direction: ", isLong ? "LONG" : "SHORT");
+   LogImportant("Volume: ", DoubleToString(lots, 2));
+   LogImportant("Entry: ~", DoubleToString(isLong ? askPrice : bidPrice, 5));
+   LogImportant("Stop Loss: ", DoubleToString(finalSL, 5));
+   LogImportant("Take Profit: ", DoubleToString(finalTP, 5));
    
    bool ok = isLong
              ? trade.Buy(lots, _Symbol, 0, finalSL, finalTP, "Long_Pivot")
@@ -555,13 +557,13 @@ void OpenTrade(bool isLong, const double sl, const double tp)
 
    if(!ok) { 
       int error = trade.ResultRetcode();
-      Print("❌ OpenTrade(): order failed – Error: ", error, " (", trade.ResultComment(), ")");
+      LogImportant("❌ OpenTrade(): order failed – Error: ", error, " (", trade.ResultComment(), ")");
       return;
    }
 
-   Print("✅ TRADE EXECUTED SUCCESSFULLY!");
-   Print("   Order ticket: ", trade.ResultOrder());
-   Print("   Execution price: ", DoubleToString(trade.ResultPrice(), 5));
+   LogImportant("✅ TRADE EXECUTED SUCCESSFULLY!");
+   LogImportant("   Order ticket: ", trade.ResultOrder());
+   LogImportant("   Execution price: ", DoubleToString(trade.ResultPrice(), 5));
 
    // Reset per-side flags
    if(isLong) { 
@@ -576,11 +578,11 @@ void OpenTrade(bool isLong, const double sl, const double tp)
    //––– Fire hedge order
    if(EnableHedgeCommunication)
    {
-      Print("=== SENDING HEDGE SIGNAL ===");
-      Print("Hedge Direction: ", isLong ? "SELL" : "BUY");
-      Print("Hedge Volume: ", DoubleToString(lotLive, 2));
-      Print("Hedge TP: ", DoubleToString(finalTP, 5));
-      Print("Hedge SL: ", DoubleToString(finalSL, 5));
+      LogImportant("=== SENDING HEDGE SIGNAL ===");
+      LogImportant("Hedge Direction: ", isLong ? "SELL" : "BUY");
+      LogImportant("Hedge Volume: ", DoubleToString(lotLive, 2));
+      LogImportant("Hedge TP: ", DoubleToString(finalTP, 5));
+      LogImportant("Hedge SL: ", DoubleToString(finalSL, 5));
       
       SendHedgeSignal("OPEN", isLong? "SELL":"BUY", lotLive, finalTP, finalSL);
    }
@@ -609,7 +611,7 @@ void ManageOpenPositions()
       static datetime lastWarning = 0;
       if(TimeCurrent() - lastWarning > 5)
       {
-         Print("DEBUG: Position management delayed - Position age: ", positionAge, " seconds (waiting for 10s)");
+         LogImportant("DEBUG: Position management delayed - Position age: ", positionAge, " seconds (waiting for 10s)");
          lastWarning = TimeCurrent();
       }
       return;
@@ -626,7 +628,7 @@ void ManageOpenPositions()
          // Calculate scale-out price at specified percentage of the target distance
          double scaleOut1Price = entryPrice + ((pivotTpLongEntry - entryPrice) * ScaleOut1Pct / 100.0);
          
-         Print("DEBUG: LONG Scale-out check - Current: ", DoubleToString(Close[0], 5), 
+         LogImportant("DEBUG: LONG Scale-out check - Current: ", DoubleToString(Close[0], 5), 
                " Target: ", DoubleToString(scaleOut1Price, 5), 
                " Progress: ", DoubleToString(distInPips, 1), " pips");
          
@@ -636,14 +638,14 @@ void ManageOpenPositions()
             scaleOut1LongTriggered = true;
             double partialQty = positionVolume * (ScaleOut1Size / 100.0);
             
-            Print("🎯 EXECUTING LONG SCALE-OUT:");
-            Print("   Price reached: ", DoubleToString(Close[0], 5));
-            Print("   Target was: ", DoubleToString(scaleOut1Price, 5));
-            Print("   Closing volume: ", DoubleToString(partialQty, 2));
+            LogImportant("🎯 EXECUTING LONG SCALE-OUT:");
+            LogImportant("   Price reached: ", DoubleToString(Close[0], 5));
+            LogImportant("   Target was: ", DoubleToString(scaleOut1Price, 5));
+            LogImportant("   Closing volume: ", DoubleToString(partialQty, 2));
             
             if(trade.PositionClosePartial(PositionGetTicket(0), partialQty))
             {
-               Print("✅ Long position scaled out successfully!");
+               LogImportant("✅ Long position scaled out successfully!");
                
                // Set breakeven if enabled
                if(ScaleOut1BE && !beAppliedLong && pivotStopLongEntry < entryPrice)
@@ -651,25 +653,25 @@ void ManageOpenPositions()
                   beAppliedLong = true;
                   double newSL = entryPrice;
                   
-                  Print("🔄 Setting breakeven after scale-out:");
-                  Print("   Old SL: ", DoubleToString(pivotStopLongEntry, 5));
-                  Print("   New SL: ", DoubleToString(newSL, 5));
+                  LogImportant("🔄 Setting breakeven after scale-out:");
+                  LogImportant("   Old SL: ", DoubleToString(pivotStopLongEntry, 5));
+                  LogImportant("   New SL: ", DoubleToString(newSL, 5));
                   
                   if(trade.PositionModify(PositionGetTicket(0), newSL, pivotTpLongEntry))
                   {
-                     Print("✅ Long position SL moved to breakeven after scale-out");
+                     LogImportant("✅ Long position SL moved to breakeven after scale-out");
                      pivotStopLongEntry = newSL;
                      
                      // Signal hedge EA about stop adjustment
                      if(EnableHedgeCommunication)
                      {
                         SendHedgeSignal("MODIFY", "SELL", 0, pivotTpLongEntry, newSL);
-                        Print("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
+                        LogImportant("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
                      }
                   }
                   else
                   {
-                     Print("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
+                     LogImportant("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
                   }
                }
                
@@ -678,12 +680,12 @@ void ManageOpenPositions()
                {
                   double hedgeScaleOutLots = NormalizeLots(partialQty * hedgeFactor);
                   SendHedgeSignal("PARTIAL_CLOSE", "SELL", hedgeScaleOutLots, 0, 0);
-                  Print("📤 Hedge partial close signal sent: SELL ", DoubleToString(hedgeScaleOutLots, 2));
+                  LogImportant("📤 Hedge partial close signal sent: SELL ", DoubleToString(hedgeScaleOutLots, 2));
                }
             }
             else
             {
-               Print("❌ Scale-out failed. Error: ", trade.ResultRetcode(), " (", trade.ResultComment(), ")");
+               LogImportant("❌ Scale-out failed. Error: ", trade.ResultRetcode(), " (", trade.ResultComment(), ")");
             }
          }
       }
@@ -694,26 +696,26 @@ void ManageOpenPositions()
          beAppliedLong = true;
          double newSL = entryPrice;
          
-         Print("🔄 Regular breakeven triggered:");
-         Print("   Distance: ", DoubleToString(distInPips, 1), " pips (trigger: ", BeTriggerPips, ")");
-         Print("   Old SL: ", DoubleToString(pivotStopLongEntry, 5));
-         Print("   New SL: ", DoubleToString(newSL, 5));
+         LogImportant("🔄 Regular breakeven triggered:");
+         LogImportant("   Distance: ", DoubleToString(distInPips, 1), " pips (trigger: ", BeTriggerPips, ")");
+         LogImportant("   Old SL: ", DoubleToString(pivotStopLongEntry, 5));
+         LogImportant("   New SL: ", DoubleToString(newSL, 5));
          
          if(trade.PositionModify(PositionGetTicket(0), newSL, pivotTpLongEntry))
          {
-            Print("✅ Long position SL moved to breakeven");
+            LogImportant("✅ Long position SL moved to breakeven");
             pivotStopLongEntry = newSL;
             
             // Signal hedge EA about stop adjustment
             if(EnableHedgeCommunication)
             {
                SendHedgeSignal("MODIFY", "SELL", 0, pivotTpLongEntry, newSL);
-               Print("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
+               LogImportant("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
             }
          }
          else
          {
-            Print("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
+            LogImportant("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
          }
       }
    }
@@ -728,7 +730,7 @@ void ManageOpenPositions()
       {
          double scaleOut1Price = entryPrice - ((entryPrice - pivotTpShortEntry) * ScaleOut1Pct / 100.0);
          
-         Print("DEBUG: SHORT Scale-out check - Current: ", DoubleToString(Close[0], 5), 
+         LogImportant("DEBUG: SHORT Scale-out check - Current: ", DoubleToString(Close[0], 5), 
                " Target: ", DoubleToString(scaleOut1Price, 5), 
                " Progress: ", DoubleToString(distInPips, 1), " pips");
          
@@ -737,14 +739,14 @@ void ManageOpenPositions()
             scaleOut1ShortTriggered = true;
             double partialQty = positionVolume * (ScaleOut1Size / 100.0);
             
-            Print("🎯 EXECUTING SHORT SCALE-OUT:");
-            Print("   Price reached: ", DoubleToString(Close[0], 5));
-            Print("   Target was: ", DoubleToString(scaleOut1Price, 5));
-            Print("   Closing volume: ", DoubleToString(partialQty, 2));
+            LogImportant("🎯 EXECUTING SHORT SCALE-OUT:");
+            LogImportant("   Price reached: ", DoubleToString(Close[0], 5));
+            LogImportant("   Target was: ", DoubleToString(scaleOut1Price, 5));
+            LogImportant("   Closing volume: ", DoubleToString(partialQty, 2));
             
             if(trade.PositionClosePartial(PositionGetTicket(0), partialQty))
             {
-               Print("✅ Short position scaled out successfully!");
+               LogImportant("✅ Short position scaled out successfully!");
                
                // Set breakeven if enabled
                if(ScaleOut1BE && !beAppliedShort && pivotStopShortEntry > entryPrice)
@@ -752,25 +754,25 @@ void ManageOpenPositions()
                   beAppliedShort = true;
                   double newSL = entryPrice;
                   
-                  Print("🔄 Setting breakeven after scale-out:");
-                  Print("   Old SL: ", DoubleToString(pivotStopShortEntry, 5));
-                  Print("   New SL: ", DoubleToString(newSL, 5));
+                  LogImportant("🔄 Setting breakeven after scale-out:");
+                  LogImportant("   Old SL: ", DoubleToString(pivotStopShortEntry, 5));
+                  LogImportant("   New SL: ", DoubleToString(newSL, 5));
                   
                   if(trade.PositionModify(PositionGetTicket(0), newSL, pivotTpShortEntry))
                   {
-                     Print("✅ Short position SL moved to breakeven after scale-out");
+                     LogImportant("✅ Short position SL moved to breakeven after scale-out");
                      pivotStopShortEntry = newSL;
                      
                      // Signal hedge EA about stop adjustment
                      if(EnableHedgeCommunication)
                      {
                         SendHedgeSignal("MODIFY", "BUY", 0, pivotTpShortEntry, newSL);
-                        Print("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
+                        LogImportant("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
                      }
                   }
                   else
                   {
-                     Print("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
+                     LogImportant("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
                   }
                }
                
@@ -779,12 +781,12 @@ void ManageOpenPositions()
                {
                   double hedgeScaleOutLots = NormalizeLots(partialQty * hedgeFactor);
                   SendHedgeSignal("PARTIAL_CLOSE", "BUY", hedgeScaleOutLots, 0, 0);
-                  Print("📤 Hedge partial close signal sent: BUY ", DoubleToString(hedgeScaleOutLots, 2));
+                  LogImportant("📤 Hedge partial close signal sent: BUY ", DoubleToString(hedgeScaleOutLots, 2));
                }
             }
             else
             {
-               Print("❌ Scale-out failed. Error: ", trade.ResultRetcode(), " (", trade.ResultComment(), ")");
+               LogImportant("❌ Scale-out failed. Error: ", trade.ResultRetcode(), " (", trade.ResultComment(), ")");
             }
          }
       }
@@ -795,26 +797,26 @@ void ManageOpenPositions()
          beAppliedShort = true;
          double newSL = entryPrice;
          
-         Print("🔄 Regular breakeven triggered:");
-         Print("   Distance: ", DoubleToString(distInPips, 1), " pips (trigger: ", BeTriggerPips, ")");
-         Print("   Old SL: ", DoubleToString(pivotStopShortEntry, 5));
-         Print("   New SL: ", DoubleToString(newSL, 5));
+         LogImportant("🔄 Regular breakeven triggered:");
+         LogImportant("   Distance: ", DoubleToString(distInPips, 1), " pips (trigger: ", BeTriggerPips, ")");
+         LogImportant("   Old SL: ", DoubleToString(pivotStopShortEntry, 5));
+         LogImportant("   New SL: ", DoubleToString(newSL, 5));
          
          if(trade.PositionModify(PositionGetTicket(0), newSL, pivotTpShortEntry))
          {
-            Print("✅ Short position SL moved to breakeven");
+            LogImportant("✅ Short position SL moved to breakeven");
             pivotStopShortEntry = newSL;
             
             // Signal hedge EA about stop adjustment
             if(EnableHedgeCommunication)
             {
                SendHedgeSignal("MODIFY", "BUY", 0, pivotTpShortEntry, newSL);
-               Print("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
+               LogImportant("📤 Hedge modify signal sent: SL adjusted to ", DoubleToString(newSL, 5));
             }
          }
          else
          {
-            Print("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
+            LogImportant("❌ Failed to move SL to breakeven. Error: ", trade.ResultRetcode());
          }
       }
    }
@@ -828,11 +830,11 @@ int OnInit()
    // Set this at the very beginning of OnInit
    EnableHedgeCommunication = InputEnableHedgeCommunication;
 
-   Print("=== INITIALIZATION STARTED ===");
-   Print("InputEnableHedgeCommunication: ", InputEnableHedgeCommunication ? "TRUE" : "FALSE");
-   Print("CommunicationMethod: ", CommunicationMethod == GLOBAL_VARS ? "GLOBAL_VARS" : "FILE_BASED");
-   Print("TestingMode: ", TestingMode ? "TRUE" : "FALSE");
-   Print("MQL_TESTER: ", MQLInfoInteger(MQL_TESTER) ? "TRUE" : "FALSE");
+   LogImportant("=== INITIALIZATION STARTED ===");
+   LogImportant("InputEnableHedgeCommunication: ", InputEnableHedgeCommunication ? "TRUE" : "FALSE");
+   LogImportant("CommunicationMethod: ", CommunicationMethod == GLOBAL_VARS ? "GLOBAL_VARS" : "FILE_BASED");
+   LogImportant("TestingMode: ", TestingMode ? "TRUE" : "FALSE");
+   LogImportant("MQL_TESTER: ", MQLInfoInteger(MQL_TESTER) ? "TRUE" : "FALSE");
 
    // Clean up any existing file handles first
    CleanupFileHandles();
@@ -847,20 +849,20 @@ int OnInit()
    {
       // Disable hedge communication in tester
       EnableHedgeCommunication = false;  
-      Print("Running in Strategy Tester Mode - Hedge communication disabled");
+      LogImportant("Running in Strategy Tester Mode - Hedge communication disabled");
    }
 
-   Print("Final EnableHedgeCommunication: ", EnableHedgeCommunication ? "TRUE" : "FALSE");
+   LogImportant("Final EnableHedgeCommunication: ", EnableHedgeCommunication ? "TRUE" : "FALSE");
 
    // Initialize file paths for cross-terminal communication
-   Print("=== FILE COMMUNICATION SETUP ===");
+   LogImportant("=== FILE COMMUNICATION SETUP ===");
    if(EnableHedgeCommunication && CommunicationMethod == FILE_BASED)
    {
-      Print("Setting up FILE_BASED communication...");
+      LogImportant("Setting up FILE_BASED communication...");
       
       // Use common data folder so both terminals can access the files
       string commonPath = TerminalInfoString(TERMINAL_COMMONDATA_PATH);
-      Print("Common data path: ", commonPath);
+      LogImportant("Common data path: ", commonPath);
       
       // Ensure path ends with backslash
       if(StringLen(commonPath) > 0 && StringGetCharacter(commonPath, StringLen(commonPath)-1) != '\\')
@@ -871,14 +873,14 @@ int OnInit()
       COMM_FILE_PATH            = commonPath + "MT5com.txt";
       SignalFilePath            = commonPath + "Synergy_Signals.txt";
       
-      Print("File paths configured:");
-      Print("- HEARTBEAT_FILE_PATH: ", HEARTBEAT_FILE_PATH);
-      Print("- HEDGE_HEARTBEAT_FILE_PATH: ", HEDGE_HEARTBEAT_FILE_PATH);
-      Print("- COMM_FILE_PATH: ", COMM_FILE_PATH);
-      Print("- SignalFilePath: ", SignalFilePath);
+      LogImportant("File paths configured:");
+      LogImportant("- HEARTBEAT_FILE_PATH: ", HEARTBEAT_FILE_PATH);
+      LogImportant("- HEDGE_HEARTBEAT_FILE_PATH: ", HEDGE_HEARTBEAT_FILE_PATH);
+      LogImportant("- COMM_FILE_PATH: ", COMM_FILE_PATH);
+      LogImportant("- SignalFilePath: ", SignalFilePath);
       
       // Test file access for heartbeat with FILE_COMMON flag
-      Print("Attempting to create heartbeat file...");
+      LogImportant("Attempting to create heartbeat file...");
       ResetLastError();
       
       int fileHandle = FileOpen(HEARTBEAT_FILE_PATH, FILE_WRITE|FILE_TXT|FILE_COMMON);
@@ -890,32 +892,32 @@ int OnInit()
          FileFlush(fileHandle);
          FileClose(fileHandle);
          
-         Print("✅ SUCCESS: Heartbeat file created successfully!");
-         Print("   Content: ", heartbeatContent);
-         Print("   Bytes written: ", writeResult);
-         Print("   Magic: ", Magic_Number);
-         Print("   Path: ", HEARTBEAT_FILE_PATH);
+         LogImportant("✅ SUCCESS: Heartbeat file created successfully!");
+         LogImportant("   Content: ", heartbeatContent);
+         LogImportant("   Bytes written: ", writeResult);
+         LogImportant("   Magic: ", Magic_Number);
+         LogImportant("   Path: ", HEARTBEAT_FILE_PATH);
          
          // Verify file was actually created
          if(FileIsExist(HEARTBEAT_FILE_PATH, FILE_COMMON))
          {
-            Print("✅ VERIFIED: File exists and is accessible");
+            LogImportant("✅ VERIFIED: File exists and is accessible");
          }
          else
          {
-            Print("⚠️  WARNING: File created but not accessible via FileIsExist");
+            LogWarning("File created but not accessible via FileIsExist");
          }
       }
       else
       {
          int errorCode = GetLastError();
-         Print("❌ ERROR: Failed to create heartbeat file!");
-         Print("   Error Code: ", errorCode, " (", GetErrorDescription(errorCode), ")");
-         Print("   Path: ", HEARTBEAT_FILE_PATH);
-         Print("   Common Path: ", commonPath);
+         LogError("Failed to create heartbeat file!");
+         LogError("   Error Code: ", errorCode, " (", GetErrorDescription(errorCode), ")");
+         LogError("   Path: ", HEARTBEAT_FILE_PATH);
+         LogError("   Common Path: ", commonPath);
          
          // Try alternative path
-         Print("Trying alternative path without FILE_COMMON...");
+         LogImportant("Trying alternative path without FILE_COMMON...");
          string altPath = "MQL5\\Files\\MT5com_heartbeat.txt";
          ResetLastError();
          int altHandle = FileOpen(altPath, FILE_WRITE|FILE_TXT);
@@ -925,7 +927,7 @@ int OnInit()
                            IntegerToString(TimeCurrent()));
             FileFlush(altHandle);
             FileClose(altHandle);
-            Print("✅ Alternative path worked: ", altPath);
+            LogImportant("✅ Alternative path worked: ", altPath);
             
             // 🔥 CRITICAL FIX: Update ALL paths to use the same directory
             HEARTBEAT_FILE_PATH = altPath;
@@ -933,20 +935,20 @@ int OnInit()
             COMM_FILE_PATH = "MQL5\\Files\\MT5com.txt";
             SignalFilePath = "MQL5\\Files\\Synergy_Signals.txt";
             
-            Print("🔄 UPDATED all file paths to use MQL5\\Files\\ directory:");
-            Print("   - HEARTBEAT_FILE_PATH: ", HEARTBEAT_FILE_PATH);
-            Print("   - HEDGE_HEARTBEAT_FILE_PATH: ", HEDGE_HEARTBEAT_FILE_PATH);
-            Print("   - COMM_FILE_PATH: ", COMM_FILE_PATH);
-            Print("   - SignalFilePath: ", SignalFilePath);
+            LogImportant("🔄 UPDATED all file paths to use MQL5\\Files\\ directory:");
+            LogImportant("   - HEARTBEAT_FILE_PATH: ", HEARTBEAT_FILE_PATH);
+            LogImportant("   - HEDGE_HEARTBEAT_FILE_PATH: ", HEDGE_HEARTBEAT_FILE_PATH);
+            LogImportant("   - COMM_FILE_PATH: ", COMM_FILE_PATH);
+            LogImportant("   - SignalFilePath: ", SignalFilePath);
          }
          else
          {
-            Print("❌ Alternative path also failed. Error: ", GetLastError(), " (", GetErrorDescription(GetLastError()), ")");
+            LogImportant("❌ Alternative path also failed. Error: ", GetLastError(), " (", GetErrorDescription(GetLastError()), ")");
          }
       }
       
       // Test signal file creation with potentially updated path
-      Print("Testing signal file creation...");
+      LogImportant("Testing signal file creation...");
       ResetLastError();
       
       // Use appropriate flags based on which path we're using
@@ -960,17 +962,17 @@ int OnInit()
          FileWriteString(signalHandle, "TEST_SIGNAL,INIT," + IntegerToString(TimeCurrent()));
          FileFlush(signalHandle);
          FileClose(signalHandle);
-         Print("✅ Signal file test successful: ", COMM_FILE_PATH);
+         LogImportant("✅ Signal file test successful: ", COMM_FILE_PATH);
       }
       else
       {
          int error = GetLastError();
-         Print("❌ Signal file test failed. Error: ", error, " (", GetErrorDescription(error), ")");
+         LogImportant("❌ Signal file test failed. Error: ", error, " (", GetErrorDescription(error), ")");
          
          // If we're still using Common path and it failed, try MQL5\Files fallback
          if(useFileCommon)
          {
-            Print("Trying signal file with MQL5\\Files\\ fallback...");
+            LogImportant("Trying signal file with MQL5\\Files\\ fallback...");
             string altSignalPath = "MQL5\\Files\\MT5com.txt";
             ResetLastError();
             int altSignalHandle = FileOpen(altSignalPath, FILE_WRITE|FILE_TXT);
@@ -979,31 +981,31 @@ int OnInit()
                FileWriteString(altSignalHandle, "TEST_SIGNAL,INIT," + IntegerToString(TimeCurrent()));
                FileFlush(altSignalHandle);
                FileClose(altSignalHandle);
-               Print("✅ Alternative signal file successful: ", altSignalPath);
+               LogImportant("✅ Alternative signal file successful: ", altSignalPath);
                COMM_FILE_PATH = altSignalPath;  // Update the path
                
                // Update SignalFilePath too for consistency
                SignalFilePath = "MQL5\\Files\\Synergy_Signals.txt";
-               Print("Updated COMM_FILE_PATH and SignalFilePath to MQL5\\Files\\");
+               LogImportant("Updated COMM_FILE_PATH and SignalFilePath to MQL5\\Files\\");
             }
             else
             {
-               Print("❌ Alternative signal file also failed. Error: ", GetLastError(), " (", GetErrorDescription(GetLastError()), ")");
+               LogImportant("❌ Alternative signal file also failed. Error: ", GetLastError(), " (", GetErrorDescription(GetLastError()), ")");
             }
          }
       }
    }
    else if(EnableHedgeCommunication && CommunicationMethod == GLOBAL_VARS)
    {
-      Print("Using GLOBAL_VARS communication method");
+      LogImportant("Using GLOBAL_VARS communication method");
    }
    else if(!EnableHedgeCommunication)
    {
-      Print("Hedge communication is DISABLED");
+      LogImportant("Hedge communication is DISABLED");
    }
    else
    {
-      Print("❌ Unknown communication configuration!");
+      LogImportant("❌ Unknown communication configuration!");
    }
    
    // Store initial balance
@@ -1013,26 +1015,26 @@ int OnInit()
    // Initialize Session Filters
    if(!InitTradingSessions())
    {
-      Print("Failed to initialize trading sessions");
+      LogImportant("Failed to initialize trading sessions");
       return(INIT_FAILED);
    }
    
    // Initialize all indicators and systems
    if(!InitSynergyIndicators())
    {
-      Print("Failed to initialize Synergy Score indicators");
+      LogImportant("Failed to initialize Synergy Score indicators");
       return(INIT_FAILED);
    }
    
    if(!InitMarketBias())
    {
-      Print("Failed to initialize Market Bias indicator");
+      LogImportant("Failed to initialize Market Bias indicator");
       return(INIT_FAILED);
    }
    
    if(!InitADXFilter())
    {
-      Print("Failed to initialize ADX Filter");
+      LogImportant("Failed to initialize ADX Filter");
       return(INIT_FAILED);
    }
    
@@ -1054,7 +1056,7 @@ int OnInit()
    BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupADX);
    BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupBias);
 
-   Print("History warm-up requirement set to ",BARS_REQUIRED," bars");
+   LogImportant("History warm-up requirement set to ",BARS_REQUIRED," bars");
    WarmupIndicatorHistory();
    
    // Create dashboard 
@@ -1074,7 +1076,7 @@ int OnInit()
    entryTriggersEnabled = true;
 
    // Set up hedge communication if enabled
-   Print("=== FINAL COMMUNICATION SETUP ===");
+   LogImportant("=== FINAL COMMUNICATION SETUP ===");
    if(EnableHedgeCommunication)
    {
       if(CommunicationMethod == GLOBAL_VARS)
@@ -1082,33 +1084,33 @@ int OnInit()
          // Initialize the global variables for the hedge EA to find
          GlobalVariableSet("PROP_HB_" + IntegerToString(Magic_Number), (double)TimeCurrent());
          GlobalVariableSet("EASignal_Connected_"+IntegerToString(HedgeEA_Magic), (double)TimeCurrent());
-         Print("✅ Hedge communication enabled (Global Variables). Target EA Magic: ", HedgeEA_Magic);
-         Print("Main EA registered heartbeat with Magic: ", Magic_Number);
-         Print("Main EA looking for hedge with Magic: ", HedgeEA_Magic);
+         LogImportant("✅ Hedge communication enabled (Global Variables). Target EA Magic: ", HedgeEA_Magic);
+         LogImportant("Main EA registered heartbeat with Magic: ", Magic_Number);
+         LogImportant("Main EA looking for hedge with Magic: ", HedgeEA_Magic);
          
          // Add diagnostic output of all global variables
-         Print("--- GLOBAL VARIABLES AT INIT ---");
+         LogImportant("--- GLOBAL VARIABLES AT INIT ---");
          for(int i=0; i<GlobalVariablesTotal(); i++) {
             string name = GlobalVariableName(i);
             double value = GlobalVariableGet(name);
-            Print(name, " = ", value);
+            LogImportant(name, " = ", value);
          }
-         Print("-------------------------------");
+         LogImportant("-------------------------------");
       }
       else // FILE_BASED
       {
-         Print("✅ File-based communication enabled. Target EA Magic: ", HedgeEA_Magic);
-         Print("File communication paths:");
-         Print("- Main heartbeat: ", HEARTBEAT_FILE_PATH);
-         Print("- Hedge heartbeat: ", HEDGE_HEARTBEAT_FILE_PATH);
-         Print("- Signal file: ", COMM_FILE_PATH);
-         Print("- Additional signals: ", SignalFilePath);
-         Print("Communication ready with proper file handle management and synchronized paths");
+         LogImportant("✅ File-based communication enabled. Target EA Magic: ", HedgeEA_Magic);
+         LogImportant("File communication paths:");
+         LogImportant("- Main heartbeat: ", HEARTBEAT_FILE_PATH);
+         LogImportant("- Hedge heartbeat: ", HEDGE_HEARTBEAT_FILE_PATH);
+         LogImportant("- Signal file: ", COMM_FILE_PATH);
+         LogImportant("- Additional signals: ", SignalFilePath);
+         LogImportant("Communication ready with proper file handle management and synchronized paths");
       }
    }
    else
    {
-      Print("❌ Hedge communication is DISABLED");
+      LogImportant("❌ Hedge communication is DISABLED");
    }
 
    // Start heartbeat system
@@ -1117,17 +1119,17 @@ int OnInit()
    linkWasOK = IsLinkAlive(true);
 
    // Print initial settings for verification
-   Print("=== SETTINGS VERIFICATION ===");
-   Print("UseFixedLot = ", UseFixedLot ? "TRUE" : "FALSE");
-   Print("FixedLotSize = ", FixedLotSize);
-   Print("RiskPercent = ", RiskPercent);
-   Print("MinLot = ", MinLot);
-   Print("Magic_Number = ", Magic_Number);
-   Print("HedgeEA_Magic = ", HedgeEA_Magic);
-   Print("EnableHedgeCommunication = ", EnableHedgeCommunication ? "TRUE" : "FALSE");
-   Print("CommunicationMethod = ", CommunicationMethod == GLOBAL_VARS ? "GLOBAL_VARS" : "FILE_BASED");
-   Print("Synergy Strategy v1.04 initialised. Hedge factor:",DoubleToString(hedgeFactor,4));
-   Print("=== INITIALIZATION COMPLETED ===");
+   LogImportant("=== SETTINGS VERIFICATION ===");
+   LogImportant("UseFixedLot = ", UseFixedLot ? "TRUE" : "FALSE");
+   LogImportant("FixedLotSize = ", FixedLotSize);
+   LogImportant("RiskPercent = ", RiskPercent);
+   LogImportant("MinLot = ", MinLot);
+   LogImportant("Magic_Number = ", Magic_Number);
+   LogImportant("HedgeEA_Magic = ", HedgeEA_Magic);
+   LogImportant("EnableHedgeCommunication = ", EnableHedgeCommunication ? "TRUE" : "FALSE");
+   LogImportant("CommunicationMethod = ", CommunicationMethod == GLOBAL_VARS ? "GLOBAL_VARS" : "FILE_BASED");
+   LogImportant("Synergy Strategy v1.04 initialised. Hedge factor:",DoubleToString(hedgeFactor,4));
+   LogImportant("=== INITIALIZATION COMPLETED ===");
 
    return(INIT_SUCCEEDED);
 }
@@ -1144,28 +1146,28 @@ void OnTick()
    
    // Print basic status every 50 ticks or every 30 seconds
    if(debugCounter % 50 == 0 || TimeCurrent() - lastDebugTime > 30) {
-      Print("=== BASIC STATUS CHECK #", debugCounter, " ===");
-      Print("Time: ", TimeToString(TimeCurrent()));
-      Print("EnableTrading: ", EnableTrading);
-      Print("IsMarketOpen: ", IsMarketOpen());
-      Print("Bars Available: ", Bars(_Symbol,PERIOD_CURRENT), " / Required: ", BARS_REQUIRED);
-      Print("Has Open Position: ", HasOpenPosition());
+      LogImportant("=== BASIC STATUS CHECK #", debugCounter, " ===");
+      LogImportant("Time: ", TimeToString(TimeCurrent()));
+      LogImportant("EnableTrading: ", EnableTrading);
+      LogImportant("IsMarketOpen: ", IsMarketOpen());
+      LogImportant("Bars Available: ", Bars(_Symbol,PERIOD_CURRENT), " / Required: ", BARS_REQUIRED);
+      LogImportant("Has Open Position: ", HasOpenPosition());
       // Add debugging to see actual score values
-      Print("DEBUG: Synergy Score calculated: ", DoubleToString(synergyScore, 3));
+      LogImportant("DEBUG: Synergy Score calculated: ", DoubleToString(synergyScore, 3));
       lastDebugTime = TimeCurrent();
    }
    
    // 0) global guards with detailed logging
    if(!EnableTrading) {
-      if(debugCounter % 100 == 0) Print("DEBUG: Trading disabled");
+      if(debugCounter % 100 == 0) LogImportant("DEBUG: Trading disabled");
       return;
    }
    if(!IsMarketOpen()) {
-      if(debugCounter % 100 == 0) Print("DEBUG: Market closed");
+      if(debugCounter % 100 == 0) LogImportant("DEBUG: Market closed");
       return;
    }
    if(Bars(_Symbol,PERIOD_CURRENT)<BARS_REQUIRED) {
-      if(debugCounter % 100 == 0) Print("DEBUG: Insufficient bars - Available: ", Bars(_Symbol,PERIOD_CURRENT), " Required: ", BARS_REQUIRED);
+      if(debugCounter % 100 == 0) LogImportant("DEBUG: Insufficient bars - Available: ", Bars(_Symbol,PERIOD_CURRENT), " Required: ", BARS_REQUIRED);
       return;
    }
 
@@ -1183,52 +1185,52 @@ void OnTick()
       static datetime lastBarWait = 0;
       if(TimeCurrent() - lastBarWait > 30)
       {
-         Print("DEBUG: Waiting for bar close confirmation...");
+         LogImportant("DEBUG: Waiting for bar close confirmation...");
          lastBarWait = TimeCurrent();
       }
       return;
    }
 
-   Print("====================================================");
-   Print("=== BAR CLOSE ANALYSIS - ", TimeToString(TimeCurrent()), " ===");
-   Print("====================================================");
+   LogImportant("====================================================");
+   LogImportant("=== BAR CLOSE ANALYSIS - ", TimeToString(TimeCurrent()), " ===");
+   LogImportant("====================================================");
    
    // 4) pull fresh history with detailed logging
    int needBars = MathMax(PivotTPBars + PivotLengthLeft + PivotLengthRight + 5 , 100);
-   Print("DEBUG: Need ", needBars, " bars for analysis");
+   LogImportant("DEBUG: Need ", needBars, " bars for analysis");
    
    if(CopyClose(_Symbol,PERIOD_CURRENT,0,needBars,Close) < needBars) {
-      Print("ERROR: Failed to copy Close prices - got ", ArraySize(Close), " need ", needBars);
+      LogError("Failed to copy Close prices - got ", ArraySize(Close), " need ", needBars);
       return;
    }
    if(CopyOpen(_Symbol,PERIOD_CURRENT,0,needBars,Open) < needBars) {
-      Print("ERROR: Failed to copy Open prices");
+      LogError("Failed to copy Open prices");
       return;
    }
    if(CopyHigh(_Symbol,PERIOD_CURRENT,0,needBars,High) < needBars) {
-      Print("ERROR: Failed to copy High prices");
+      LogError("Failed to copy High prices");
       return;
    }
    if(CopyLow(_Symbol,PERIOD_CURRENT,0,needBars,Low) < needBars) {
-      Print("ERROR: Failed to copy Low prices");
+      LogError("Failed to copy Low prices");
       return;
    }
    if(CopyTime(_Symbol,PERIOD_CURRENT,0,needBars,TimeSeries) < needBars) {
-      Print("ERROR: Failed to copy Time series");
+      LogError("Failed to copy Time series");
       return;
    }
-   Print("DEBUG: Successfully copied price data - Arrays size: ", ArraySize(Close));
+   LogImportant("DEBUG: Successfully copied price data - Arrays size: ", ArraySize(Close));
 
    // 5) session filter with logging
    bool inSession = IsInTradingSession();
-   Print("DEBUG: Trading Session Check: ", inSession ? "IN SESSION" : "OUT OF SESSION");
+   LogImportant("DEBUG: Trading Session Check: ", inSession ? "IN SESSION" : "OUT OF SESSION");
    if(!inSession) {
-      Print("DEBUG: Outside trading session - exiting");
+      LogImportant("DEBUG: Outside trading session - exiting");
       return;
    }
 
    // 6) refresh indicators ONLY ON BAR CLOSE
-   Print("--- INDICATOR CALCULATIONS (BAR CLOSE) ---");
+   LogImportant("--- INDICATOR CALCULATIONS (BAR CLOSE) ---");
    double oldSynergyScore = synergyScore;
    bool oldBiasPositive = currentBiasPositive;
    bool oldBiasChangedToBullish = biasChangedToBullish;
@@ -1239,31 +1241,31 @@ void OnTick()
    CalculateMarketBias();
    CalculateADXFilter();
    
-   Print("SYNERGY SCORE: ", DoubleToString(synergyScore, 3), " (was: ", DoubleToString(oldSynergyScore, 3), ") - Enabled: ", UseSynergyScore);
-   Print("MARKET BIAS: Current=", currentBiasPositive ? "BULLISH" : "BEARISH", " (was: ", oldBiasPositive ? "BULLISH" : "BEARISH", ") - Enabled: ", UseMarketBias);
-   Print("BIAS CHANGES: ToBullish=", biasChangedToBullish, " (was: ", oldBiasChangedToBullish, "), ToBearish=", biasChangedToBearish, " (was: ", oldBiasChangedToBearish, ")");
-   Print("ADX TREND: ", adxTrendCondition ? "TRUE" : "FALSE", " (was: ", oldAdxCondition ? "TRUE" : "FALSE", ") - Enabled: ", EnableADXFilter);
-   if(EnableADXFilter) Print("ADX Threshold: ", DoubleToString(effectiveADXThreshold, 2));
+   LogImportant("SYNERGY SCORE: ", DoubleToString(synergyScore, 3), " (was: ", DoubleToString(oldSynergyScore, 3), ") - Enabled: ", UseSynergyScore);
+   LogImportant("MARKET BIAS: Current=", currentBiasPositive ? "BULLISH" : "BEARISH", " (was: ", oldBiasPositive ? "BULLISH" : "BEARISH", ") - Enabled: ", UseMarketBias);
+   LogImportant("BIAS CHANGES: ToBullish=", biasChangedToBullish, " (was: ", oldBiasChangedToBullish, "), ToBearish=", biasChangedToBearish, " (was: ", oldBiasChangedToBearish, ")");
+   LogImportant("ADX TREND: ", adxTrendCondition ? "TRUE" : "FALSE", " (was: ", oldAdxCondition ? "TRUE" : "FALSE", ") - Enabled: ", EnableADXFilter);
+   if(EnableADXFilter) LogImportant("ADX Threshold: ", DoubleToString(effectiveADXThreshold, 2));
 
    // 7) derive swing-pivots with detailed logging and selection criteria
-   Print("--- PIVOT CALCULATION ---");
-   Print("Pivot Selection Criteria:");
-   Print("  LONG SL  = DEEPEST pivot low BELOW current price (within ", PivotTPBars, " bars)");
-   Print("  LONG TP  = HIGHEST pivot high ABOVE current price (within ", PivotTPBars, " bars)");
-   Print("  SHORT SL = HIGHEST pivot high ABOVE current price (within ", PivotTPBars, " bars)");
-   Print("  SHORT TP = DEEPEST pivot low BELOW current price (within ", PivotTPBars, " bars)");
+   LogImportant("--- PIVOT CALCULATION ---");
+   LogImportant("Pivot Selection Criteria:");
+   LogImportant("  LONG SL  = DEEPEST pivot low BELOW current price (within ", PivotTPBars, " bars)");
+   LogImportant("  LONG TP  = HIGHEST pivot high ABOVE current price (within ", PivotTPBars, " bars)");
+   LogImportant("  SHORT SL = HIGHEST pivot high ABOVE current price (within ", PivotTPBars, " bars)");
+   LogImportant("  SHORT TP = DEEPEST pivot low BELOW current price (within ", PivotTPBars, " bars)");
    
    double slLong  = FindDeepestPivotLowBelowClose(PivotTPBars);   // Deepest (lowest) pivot low below price
    double tpLong  = FindHighestPivotHighAboveClose(PivotTPBars);  // Highest pivot high above price
    double slShort = FindHighestPivotHighAboveClose(PivotTPBars);  // Highest pivot high above price  
    double tpShort = FindDeepestPivotLowBelowClose(PivotTPBars);   // Deepest (lowest) pivot low below price
 
-   Print("Current Price: ", DoubleToString(Close[0], 5));
-   Print("SELECTED PIVOTS:");
-   Print("  LONG  - SL: ", DoubleToString(slLong, 5), " (DEEPEST low below, valid: ", (slLong > 0 && slLong < Close[0]) ? "YES" : "NO", ")");
-   Print("  LONG  - TP: ", DoubleToString(tpLong, 5), " (HIGHEST high above, valid: ", (tpLong > 0 && tpLong > Close[0]) ? "YES" : "NO", ")");
-   Print("  SHORT - SL: ", DoubleToString(slShort, 5), " (HIGHEST high above, valid: ", (slShort > 0 && slShort > Close[0]) ? "YES" : "NO", ")");
-   Print("  SHORT - TP: ", DoubleToString(tpShort, 5), " (DEEPEST low below, valid: ", (tpShort > 0 && tpShort < Close[0]) ? "YES" : "NO", ")");
+   LogImportant("Current Price: ", DoubleToString(Close[0], 5));
+   LogImportant("SELECTED PIVOTS:");
+   LogImportant("  LONG  - SL: ", DoubleToString(slLong, 5), " (DEEPEST low below, valid: ", (slLong > 0 && slLong < Close[0]) ? "YES" : "NO", ")");
+   LogImportant("  LONG  - TP: ", DoubleToString(tpLong, 5), " (HIGHEST high above, valid: ", (tpLong > 0 && tpLong > Close[0]) ? "YES" : "NO", ")");
+   LogImportant("  SHORT - SL: ", DoubleToString(slShort, 5), " (HIGHEST high above, valid: ", (slShort > 0 && slShort > Close[0]) ? "YES" : "NO", ")");
+   LogImportant("  SHORT - TP: ", DoubleToString(tpShort, 5), " (DEEPEST low below, valid: ", (tpShort > 0 && tpShort < Close[0]) ? "YES" : "NO", ")");
 
    // NO FALLBACK - Strategy requires valid pivot points only
    bool hasValidLongPivots = (slLong > 0 && slLong < Close[0] && tpLong > 0 && tpLong > Close[0]);
@@ -1273,14 +1275,14 @@ void OnTick()
 if(UseSynergyScore) {
    double oldScore = synergyScore;
    CalculateSynergyScore();  // Force calculation to see debug output
-   Print("=== SYNERGY SCORE DETAILS ===");
-   Print("Synergy Score: ", DoubleToString(synergyScore, 3), " (previous: ", DoubleToString(oldScore, 3), ")");
-   Print("M5 enabled: ", UseTF5min ? "true" : "false", ", weight: ", DoubleToString(Weight_M5, 2));
-   Print("M15 enabled: ", UseTF15min ? "true" : "false", ", weight: ", DoubleToString(Weight_M15, 2));  
-   Print("H1 enabled: ", UseTF1hour ? "true" : "false", ", weight: ", DoubleToString(Weight_H1, 2));
-   Print("RSI weight: ", DoubleToString(RSI_Weight, 2));
-   Print("Trend weight: ", DoubleToString(Trend_Weight, 2));
-   Print("MACDV Slope weight: ", DoubleToString(MACDV_Slope_Weight, 2));
+   LogImportant("=== SYNERGY SCORE DETAILS ===");
+   LogImportant("Synergy Score: ", DoubleToString(synergyScore, 3), " (previous: ", DoubleToString(oldScore, 3), ")");
+   LogImportant("M5 enabled: ", UseTF5min ? "true" : "false", ", weight: ", DoubleToString(Weight_M5, 2));
+   LogImportant("M15 enabled: ", UseTF15min ? "true" : "false", ", weight: ", DoubleToString(Weight_M15, 2));  
+   LogImportant("H1 enabled: ", UseTF1hour ? "true" : "false", ", weight: ", DoubleToString(Weight_H1, 2));
+   LogImportant("RSI weight: ", DoubleToString(RSI_Weight, 2));
+   LogImportant("Trend weight: ", DoubleToString(Trend_Weight, 2));
+   LogImportant("MACDV Slope weight: ", DoubleToString(MACDV_Slope_Weight, 2));
    
    // If score is still zero, check what's happening with each component
    if(synergyScore == 0) {
@@ -1290,9 +1292,9 @@ if(UseSynergyScore) {
          ArraySetAsSeries(rsiData, true);
          int copied = CopyBuffer(rsiHandle_M5, 0, 0, 1, rsiData);
          if(copied == 1) {
-            Print("Direct RSI M5 check - Current value: ", DoubleToString(rsiData[0], 2));
+            LogImportant("Direct RSI M5 check - Current value: ", DoubleToString(rsiData[0], 2));
          } else {
-            Print("Failed to get direct RSI value. Copied: ", copied);
+            LogImportant("Failed to get direct RSI value. Copied: ", copied);
          }
       }
    }
@@ -1300,15 +1302,15 @@ if(UseSynergyScore) {
    
    if(!hasValidLongPivots && !hasValidShortPivots)
    {
-      Print("DEBUG: No valid pivot combinations found - NO TRADE (Strategy requires strict pivot SL/TP)");
+      LogImportant("DEBUG: No valid pivot combinations found - NO TRADE (Strategy requires strict pivot SL/TP)");
    }
    else if(!hasValidLongPivots)
    {
-      Print("DEBUG: No valid LONG pivot combination (SL:", DoubleToString(slLong,5), " TP:", DoubleToString(tpLong,5), ")");
+      LogImportant("DEBUG: No valid LONG pivot combination (SL:", DoubleToString(slLong,5), " TP:", DoubleToString(tpLong,5), ")");
    }
    else if(!hasValidShortPivots)
    {
-      Print("DEBUG: No valid SHORT pivot combination (SL:", DoubleToString(slShort,5), " TP:", DoubleToString(tpShort,5), ")");
+      LogImportant("DEBUG: No valid SHORT pivot combination (SL:", DoubleToString(slShort,5), " TP:", DoubleToString(tpShort,5), ")");
    }
 
    // Draw pivot lines on chart
@@ -1372,19 +1374,19 @@ if(UseSynergyScore) {
    if(tpShort >0) pivotTpShortEntry   = tpShort;
 
    // 8) build entry conditions with detailed breakdown
-   Print("--- ENTRY CONDITIONS ANALYSIS ---");
+   LogImportant("--- ENTRY CONDITIONS ANALYSIS ---");
    
    // Common conditions
    bool confirmedBar = true; // We already checked this above
    bool hasPosition = HasOpenPosition();
    bool inSessionCheck2 = IsInTradingSession(); // Double check
    
-   Print("COMMON CONDITIONS:");
-   Print("  ✓ Bar Close Confirmed: TRUE");
-   Print("  ✓ Entry Triggers Enabled: ", entryTriggersEnabled ? "TRUE" : "FALSE");
-   Print("  ✓ ADX Trend Condition: ", adxTrendCondition ? "TRUE" : "FALSE");
-   Print("  ✓ In Trading Session: ", inSessionCheck2 ? "TRUE" : "FALSE");
-   Print("  ✓ No Open Position: ", !hasPosition ? "TRUE" : "FALSE");
+   LogImportant("COMMON CONDITIONS:");
+   LogImportant("  ✓ Bar Close Confirmed: TRUE");
+   LogImportant("  ✓ Entry Triggers Enabled: ", entryTriggersEnabled ? "TRUE" : "FALSE");
+   LogImportant("  ✓ ADX Trend Condition: ", adxTrendCondition ? "TRUE" : "FALSE");
+   LogImportant("  ✓ In Trading Session: ", inSessionCheck2 ? "TRUE" : "FALSE");
+   LogImportant("  ✓ No Open Position: ", !hasPosition ? "TRUE" : "FALSE");
    
    // Long conditions breakdown
    bool longSynergyOK = UseSynergyScore ? synergyScore>0 : true;
@@ -1392,11 +1394,11 @@ if(UseSynergyScore) {
    bool longPivotSLOK = slLong > 0 && slLong < Close[0];
    bool longPivotTPOK = tpLong > 0 && tpLong > Close[0];
    
-   Print("LONG CONDITIONS:");
-   Print("  ✓ Synergy OK: ", longSynergyOK ? "TRUE" : "FALSE", " (Score: ", DoubleToString(synergyScore, 3), ", Required: >0, Enabled: ", UseSynergyScore, ")");
-   Print("  ✓ Bias OK: ", longBiasOK ? "TRUE" : "FALSE", " (ChangedToBullish: ", biasChangedToBullish, ", Enabled: ", UseMarketBias, ")");
-   Print("  ✓ Pivot SL OK: ", longPivotSLOK ? "TRUE" : "FALSE", " (", DoubleToString(slLong, 5), " < ", DoubleToString(Close[0], 5), ")");
-   Print("  ✓ Pivot TP OK: ", longPivotTPOK ? "TRUE" : "FALSE", " (", DoubleToString(tpLong, 5), " > ", DoubleToString(Close[0], 5), ")");
+   LogImportant("LONG CONDITIONS:");
+   LogImportant("  ✓ Synergy OK: ", longSynergyOK ? "TRUE" : "FALSE", " (Score: ", DoubleToString(synergyScore, 3), ", Required: >0, Enabled: ", UseSynergyScore, ")");
+   LogImportant("  ✓ Bias OK: ", longBiasOK ? "TRUE" : "FALSE", " (ChangedToBullish: ", biasChangedToBullish, ", Enabled: ", UseMarketBias, ")");
+   LogImportant("  ✓ Pivot SL OK: ", longPivotSLOK ? "TRUE" : "FALSE", " (", DoubleToString(slLong, 5), " < ", DoubleToString(Close[0], 5), ")");
+   LogImportant("  ✓ Pivot TP OK: ", longPivotTPOK ? "TRUE" : "FALSE", " (", DoubleToString(tpLong, 5), " > ", DoubleToString(Close[0], 5), ")");
 
    bool longCond = confirmedBar && entryTriggersEnabled && adxTrendCondition && 
                    longSynergyOK && longBiasOK && longPivotSLOK && longPivotTPOK && 
@@ -1408,20 +1410,20 @@ if(UseSynergyScore) {
    bool shortPivotSLOK = slShort > 0 && slShort > Close[0];
    bool shortPivotTPOK = tpShort > 0 && tpShort < Close[0];
    
-   Print("SHORT CONDITIONS:");
-   Print("  ✓ Synergy OK: ", shortSynergyOK ? "TRUE" : "FALSE", " (Score: ", DoubleToString(synergyScore, 3), ", Required: <0, Enabled: ", UseSynergyScore, ")");
-   Print("  ✓ Bias OK: ", shortBiasOK ? "TRUE" : "FALSE", " (ChangedToBearish: ", biasChangedToBearish, ", Enabled: ", UseMarketBias, ")");
-   Print("  ✓ Pivot SL OK: ", shortPivotSLOK ? "TRUE" : "FALSE", " (", DoubleToString(slShort, 5), " > ", DoubleToString(Close[0], 5), ")");
-   Print("  ✓ Pivot TP OK: ", shortPivotTPOK ? "TRUE" : "FALSE", " (", DoubleToString(tpShort, 5), " < ", DoubleToString(Close[0], 5), ")");
+   LogImportant("SHORT CONDITIONS:");
+   LogImportant("  ✓ Synergy OK: ", shortSynergyOK ? "TRUE" : "FALSE", " (Score: ", DoubleToString(synergyScore, 3), ", Required: <0, Enabled: ", UseSynergyScore, ")");
+   LogImportant("  ✓ Bias OK: ", shortBiasOK ? "TRUE" : "FALSE", " (ChangedToBearish: ", biasChangedToBearish, ", Enabled: ", UseMarketBias, ")");
+   LogImportant("  ✓ Pivot SL OK: ", shortPivotSLOK ? "TRUE" : "FALSE", " (", DoubleToString(slShort, 5), " > ", DoubleToString(Close[0], 5), ")");
+   LogImportant("  ✓ Pivot TP OK: ", shortPivotTPOK ? "TRUE" : "FALSE", " (", DoubleToString(tpShort, 5), " < ", DoubleToString(Close[0], 5), ")");
 
    bool shortCond = confirmedBar && entryTriggersEnabled && adxTrendCondition && 
                     shortSynergyOK && shortBiasOK && shortPivotSLOK && shortPivotTPOK && 
                     inSessionCheck2 && !hasPosition;
 
-   Print("--- FINAL RESULTS ---");
-   Print("LONG CONDITION RESULT: ", longCond ? "✓ TRUE - TRADE SIGNAL!" : "✗ FALSE");
-   Print("SHORT CONDITION RESULT: ", shortCond ? "✓ TRUE - TRADE SIGNAL!" : "✗ FALSE");
-   Print("DEBUG: Trade conditions - confirmedBar:", confirmedBar,
+   LogImportant("--- FINAL RESULTS ---");
+   LogImportant("LONG CONDITION RESULT: ", longCond ? "✓ TRUE - TRADE SIGNAL!" : "✗ FALSE");
+   LogImportant("SHORT CONDITION RESULT: ", shortCond ? "✓ TRUE - TRADE SIGNAL!" : "✗ FALSE");
+   LogImportant("DEBUG: Trade conditions - confirmedBar:", confirmedBar,
       " entryTriggersEnabled:", entryTriggersEnabled, 
       " adxTrendCondition:", adxTrendCondition,
       " longSynergyOK:", longSynergyOK, " (score:", DoubleToString(synergyScore, 2), ")",
@@ -1429,34 +1431,34 @@ if(UseSynergyScore) {
       " inSession:", inSessionCheck2, " noPosition:", !hasPosition);
    
    if(!longCond && !shortCond) {
-      Print("❌ NO TRADE SIGNALS - Check failed conditions above");
+      LogImportant("❌ NO TRADE SIGNALS - Check failed conditions above");
       
       // Identify the most likely blockers
-      if(!entryTriggersEnabled) Print("🚫 BLOCKER: Entry triggers disabled");
-      if(!adxTrendCondition && EnableADXFilter) Print("🚫 BLOCKER: ADX condition failed");
-      if(hasPosition) Print("🚫 BLOCKER: Position already open");
-      if(!inSessionCheck2) Print("🚫 BLOCKER: Outside trading session");
-      if(UseMarketBias && !biasChangedToBullish && !biasChangedToBearish) Print("🚫 BLOCKER: Market bias not changing (waiting for bias shift)");
-      if(!hasValidLongPivots && !hasValidShortPivots) Print("🚫 BLOCKER: No valid pivot SL/TP combinations found (strict pivot strategy)");
+      if(!entryTriggersEnabled) LogImportant("🚫 BLOCKER: Entry triggers disabled");
+      if(!adxTrendCondition && EnableADXFilter) LogImportant("🚫 BLOCKER: ADX condition failed");
+      if(hasPosition) LogImportant("🚫 BLOCKER: Position already open");
+      if(!inSessionCheck2) LogImportant("🚫 BLOCKER: Outside trading session");
+      if(UseMarketBias && !biasChangedToBullish && !biasChangedToBearish) LogImportant("🚫 BLOCKER: Market bias not changing (waiting for bias shift)");
+      if(!hasValidLongPivots && !hasValidShortPivots) LogImportant("🚫 BLOCKER: No valid pivot SL/TP combinations found (strict pivot strategy)");
    }
 
    // 9) execute with enhanced logging - ONLY ON BAR CLOSE
    if(longCond && !HasOpenPosition()) {
-      Print("🚀 EXECUTING LONG TRADE ON BAR CLOSE!");
-      Print("   Entry Price: ~", DoubleToString(Close[0], 5));
-      Print("   Stop Loss: ", DoubleToString(slLong, 5));
-      Print("   Take Profit: ", DoubleToString(tpLong, 5));
-      Print("   Using Fallback Levels: NO - Strict pivot strategy");
+      LogImportant("🚀 EXECUTING LONG TRADE ON BAR CLOSE!");
+      LogImportant("   Entry Price: ~", DoubleToString(Close[0], 5));
+      LogImportant("   Stop Loss: ", DoubleToString(slLong, 5));
+      LogImportant("   Take Profit: ", DoubleToString(tpLong, 5));
+      LogImportant("   Using Fallback Levels: NO - Strict pivot strategy");
       OpenTrade(true, slLong, tpLong);
    }
    if(shortCond && !HasOpenPosition()) {
-      Print("🚀 EXECUTING SHORT TRADE ON BAR CLOSE!");
-      Print("   Entry Price: ~", DoubleToString(Close[0], 5));
-      Print("   Stop Loss: ", DoubleToString(slShort, 5));
-      Print("   Take Profit: ", DoubleToString(tpShort, 5));
-      Print("   Using Fallback Levels: NO - Strict pivot strategy");
+      LogImportant("🚀 EXECUTING SHORT TRADE ON BAR CLOSE!");
+      LogImportant("   Entry Price: ~", DoubleToString(Close[0], 5));
+      LogImportant("   Stop Loss: ", DoubleToString(slShort, 5));
+      LogImportant("   Take Profit: ", DoubleToString(tpShort, 5));
+      LogImportant("   Using Fallback Levels: NO - Strict pivot strategy");
       OpenTrade(false, slShort, tpShort);
-      Print("DEBUG: Pivot points - Long SL:", DoubleToString(slLong, 5), 
+      LogImportant("DEBUG: Pivot points - Long SL:", DoubleToString(slLong, 5), 
       " Long TP:", DoubleToString(tpLong, 5),
       " Short SL:", DoubleToString(slShort, 5),
       " Short TP:", DoubleToString(tpShort, 5));
@@ -1495,7 +1497,7 @@ void OnDeinit(const int reason)
       GlobalVariableDel("EASignal_Time_"+IntegerToString(HedgeEA_Magic));
    }
    
-   Print("Synergy Strategy stopped. Reason: ", GetUninitReasonText(reason));
+   LogImportant("Synergy Strategy stopped. Reason: ", GetUninitReasonText(reason));
 }
 
 //+------------------------------------------------------------------+
@@ -1550,17 +1552,17 @@ void OnTimer()
    bool ok = IsLinkAlive(true);
    if(ok != linkWasOK)              // state changed → print once
    {
-      Print("Hedge link is now ", ok ? "OK ✅" : "NOT OK ❌");
+      LogImportant("Hedge link is now ", ok ? "OK ✅" : "NOT OK ❌");
       
       // When link fails, print global variables for diagnostic
       if(!ok) {
-         Print("--- GLOBAL VARIABLES WHEN LINK FAILED ---");
+         LogImportant("--- GLOBAL VARIABLES WHEN LINK FAILED ---");
          for(int i=0; i<GlobalVariablesTotal(); i++) {
             string name = GlobalVariableName(i);
             double value = GlobalVariableGet(name);
-            Print(name, " = ", value);
+            LogImportant(name, " = ", value);
          }
-         Print("-------------------------------");
+         LogImportant("-------------------------------");
       }
       
       linkWasOK = ok;
@@ -1833,7 +1835,7 @@ bool InitSynergyIndicators()
       if(rsiHandle_M5 == INVALID_HANDLE || maFastHandle_M5 == INVALID_HANDLE || 
          maSlowHandle_M5 == INVALID_HANDLE || macdHandle_M5 == INVALID_HANDLE)
       {
-         Print("Error initializing 5 minute indicators: ", GetLastError());
+         LogImportant("Error initializing 5 minute indicators: ", GetLastError());
          return false;
       }
    }
@@ -1849,7 +1851,7 @@ bool InitSynergyIndicators()
       if(rsiHandle_M15 == INVALID_HANDLE || maFastHandle_M15 == INVALID_HANDLE || 
          maSlowHandle_M15 == INVALID_HANDLE || macdHandle_M15 == INVALID_HANDLE)
       {
-         Print("Error initializing 15 minute indicators: ", GetLastError());
+         LogImportant("Error initializing 15 minute indicators: ", GetLastError());
          return false;
       }
    }
@@ -1865,7 +1867,7 @@ bool InitSynergyIndicators()
       if(rsiHandle_H1 == INVALID_HANDLE || maFastHandle_H1 == INVALID_HANDLE || 
          maSlowHandle_H1 == INVALID_HANDLE || macdHandle_H1 == INVALID_HANDLE)
       {
-         Print("Error initializing 1 hour indicators: ", GetLastError());
+         LogImportant("Error initializing 1 hour indicators: ", GetLastError());
          return false;
       }
    }
@@ -1928,7 +1930,7 @@ double CalculateSynergyScore()
       }
       else
       {
-         Print("DEBUG: M5 data missing - rsi:",g1," fast:",g2," slow:",g3,
+         LogImportant("DEBUG: M5 data missing - rsi:",g1," fast:",g2," slow:",g3,
                " macd:",g4," prev:",g5);
       }
    }
@@ -1955,7 +1957,7 @@ double CalculateSynergyScore()
       }
       else
       {
-         Print("DEBUG: M15 data missing - rsi:",h1," fast:",h2," slow:",h3,
+         LogImportant("DEBUG: M15 data missing - rsi:",h1," fast:",h2," slow:",h3,
                " macd:",h4," prev:",h5);
       }
    }
@@ -1982,7 +1984,7 @@ double CalculateSynergyScore()
       }
       else
       {
-         Print("DEBUG: H1 data missing - rsi:",k1," fast:",k2," slow:",k3,
+         LogImportant("DEBUG: H1 data missing - rsi:",k1," fast:",k2," slow:",k3,
                " macd:",k4," prev:",k5);
       }
    }
@@ -2147,7 +2149,7 @@ bool InitADXFilter()
    
    if(adxHandle == INVALID_HANDLE)
    {
-      Print("Error initializing ADX indicator: ", GetLastError());
+      LogImportant("Error initializing ADX indicator: ", GetLastError());
       return false;
    }
    
@@ -2203,7 +2205,7 @@ void WarmupIndicatorHistory()
       int need = BARS_REQUIRED;
       ResetLastError();
       int got = CopyRates(_Symbol, tfs[i], 0, need, tmp);
-      Print("Warmup ",EnumToString(tfs[i]),": requested ",need," got ",got,
+      LogImportant("Warmup ",EnumToString(tfs[i]),": requested ",need," got ",got,
             ", err ",GetLastError());
    }
 }
@@ -2525,7 +2527,7 @@ double GetRealDailyPnLFromHistory()
    // Select history for today
    if(!HistorySelect(startOfDay, currentTime))
    {
-      Print("Failed to select history for today");
+      LogImportant("Failed to select history for today");
       return 0;
    }
    
@@ -2956,7 +2958,7 @@ bool IsConfirmedBar()
    // PATCH: If IsNewBar() just detected a new bar, consider it confirmed
    if(g_newBarJustDetected)
    {
-      Print("DEBUG: Bar confirmed as part of new bar detection at ", TimeToString(TimeCurrent()));
+      LogImportant("DEBUG: Bar confirmed as part of new bar detection at ", TimeToString(TimeCurrent()));
       return true;
    }
    
@@ -2968,7 +2970,7 @@ bool IsConfirmedBar()
    if(lastBarTime != currentBarTime)
    {
       lastBarTime = currentBarTime;
-      Print("DEBUG: New bar detected at ", TimeToString(currentBarTime), " - previous bar confirmed closed");
+      LogImportant("DEBUG: New bar detected at ", TimeToString(currentBarTime), " - previous bar confirmed closed");
       return true;
    }
    
@@ -2981,7 +2983,7 @@ bool IsConfirmedBar()
       static datetime lastNearCloseWarning = 0;
       if(TimeCurrent() - lastNearCloseWarning > 30)
       {
-         Print("DEBUG: Near bar close - ", secondsUntilClose, " seconds until next bar");
+         LogImportant("DEBUG: Near bar close - ", secondsUntilClose, " seconds until next bar");
          lastNearCloseWarning = TimeCurrent();
       }
       return true;
@@ -3047,7 +3049,7 @@ string GetErrorDescription(int errorCode)
 //+------------------------------------------------------------------+
 void TryAlternativeSignalMethod(string signalData)
 {
-   Print("🔄 Trying alternative signal method...");
+   LogImportant("🔄 Trying alternative signal method...");
    
    // Try using MQL5\\Files\\ path instead of common
    string altPath = "MQL5\\Files\\MT5com.txt";
@@ -3060,20 +3062,20 @@ void TryAlternativeSignalMethod(string signalData)
       FileFlush(fileHandle);
       FileClose(fileHandle);
       
-      Print("✅ Alternative signal method succeeded: ", altPath);
+      LogImportant("✅ Alternative signal method succeeded: ", altPath);
       COMM_FILE_PATH = altPath; // Update path for future use
    }
    else
    {
       int error = GetLastError();
-      Print("❌ Alternative signal method also failed. Error: ", error, " (", GetErrorDescription(error), ")");
+      LogImportant("❌ Alternative signal method also failed. Error: ", error, " (", GetErrorDescription(error), ")");
       
       // Final fallback - try global variables as emergency
-      Print("🚨 Emergency fallback to Global Variables...");
+      LogImportant("🚨 Emergency fallback to Global Variables...");
       string magicStr = IntegerToString(HedgeEA_Magic);
       GlobalVariableSet("EASignal_Emergency_" + magicStr, (double)TimeCurrent());
       GlobalVariableSet("EASignal_Data_" + magicStr, (double)StringGetTickCount(signalData));
-      Print("Emergency signal sent via Global Variables");
+      LogImportant("Emergency signal sent via Global Variables");
    }
 }
 
@@ -3114,7 +3116,7 @@ double CalculatePositionSize(double slPips, double riskPercent)
 {
    // Add validation and logging
    if(slPips <= 0) {
-      Print("ERROR: Invalid stop loss distance of ", slPips, " pips. Using minimum lot.");
+      LogError("Invalid stop loss distance of ", slPips, " pips. Using minimum lot.");
       return MinLot;
    }
    
@@ -3130,12 +3132,12 @@ double CalculatePositionSize(double slPips, double riskPercent)
    if(tickSize > 0) {
       pipValue = tickValue * (GetPipSize() / tickSize);
    } else {
-      Print("ERROR: Tick size is zero. Using minimum lot.");
+      LogError("Tick size is zero. Using minimum lot.");
       return MinLot;
    }
    
    if(pipValue <= 0) {
-      Print("ERROR: Invalid pip value. Using minimum lot.");
+      LogError("Invalid pip value. Using minimum lot.");
       return MinLot;
    }
    
@@ -3143,7 +3145,7 @@ double CalculatePositionSize(double slPips, double riskPercent)
    double lotSize = riskAmount / (slPips * pipValue);
    
    // Log the calculation for debugging
-   Print("Risk calculation: Balance=", accountBalance, 
+   LogImportant("Risk calculation: Balance=", accountBalance, 
          ", Risk%=", riskPercent, 
          ", SL pips=", slPips, 
          ", Pip value=", pipValue,
@@ -3239,7 +3241,7 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
 {
    if(!EnableHedgeCommunication) 
    {
-      Print("DEBUG: SendHedgeSignal called but communication disabled");
+      LogImportant("DEBUG: SendHedgeSignal called but communication disabled");
       return;
    }
    
@@ -3253,10 +3255,10 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
       double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
       double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
       
-      Print("=== HEDGE SIGNAL ADJUSTMENT ===");
-      Print("Main trade SL: ", DoubleToString(sl, 5), " TP: ", DoubleToString(tp, 5));
-      Print("Current Ask: ", DoubleToString(ask, 5), " Bid: ", DoubleToString(bid, 5));
-      Print("Hedge Direction: ", direction);
+      LogImportant("=== HEDGE SIGNAL ADJUSTMENT ===");
+      LogImportant("Main trade SL: ", DoubleToString(sl, 5), " TP: ", DoubleToString(tp, 5));
+      LogImportant("Current Ask: ", DoubleToString(ask, 5), " Bid: ", DoubleToString(bid, 5));
+      LogImportant("Hedge Direction: ", direction);
       
       if(direction == "SELL") // Hedge for LONG main trade
       {
@@ -3267,9 +3269,9 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
             // Swap: Use main TP as hedge SL, main SL as hedge TP
             adjustedSL = tp;  // Main TP becomes hedge SL (above price)
             adjustedTP = sl;  // Main SL becomes hedge TP (below price)
-            Print("🔄 HEDGE SELL: Swapped SL/TP");
-            Print("   Adjusted SL: ", DoubleToString(adjustedSL, 5), " (was TP)");
-            Print("   Adjusted TP: ", DoubleToString(adjustedTP, 5), " (was SL)");
+            LogImportant("🔄 HEDGE SELL: Swapped SL/TP");
+            LogImportant("   Adjusted SL: ", DoubleToString(adjustedSL, 5), " (was TP)");
+            LogImportant("   Adjusted TP: ", DoubleToString(adjustedTP, 5), " (was SL)");
          }
       }
       else if(direction == "BUY") // Hedge for SHORT main trade
@@ -3280,9 +3282,9 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
             // Swap: Use main TP as hedge SL, main SL as hedge TP
             adjustedSL = tp;  // Main TP becomes hedge SL (below price)
             adjustedTP = sl;  // Main SL becomes hedge TP (above price)
-            Print("🔄 HEDGE BUY: Swapped SL/TP");
-            Print("   Adjusted SL: ", DoubleToString(adjustedSL, 5), " (was TP)");
-            Print("   Adjusted TP: ", DoubleToString(adjustedTP, 5), " (was SL)");
+            LogImportant("🔄 HEDGE BUY: Swapped SL/TP");
+            LogImportant("   Adjusted SL: ", DoubleToString(adjustedSL, 5), " (was TP)");
+            LogImportant("   Adjusted TP: ", DoubleToString(adjustedTP, 5), " (was SL)");
          }
       }
    }
@@ -3298,7 +3300,7 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
       GlobalVariableSet("EASignal_TP_" + magicStr, adjustedTP);
       GlobalVariableSet("EASignal_Time_" + magicStr, (double)TimeCurrent());
       
-      Print("✅ Signal sent via GLOBAL_VARS: ", signalType, " ", direction, " ", 
+      LogImportant("✅ Signal sent via GLOBAL_VARS: ", signalType, " ", direction, " ", 
             DoubleToString(volume, 2), " lots, TP: ", DoubleToString(adjustedTP, 5), 
             ", SL: ", DoubleToString(adjustedSL, 5));
    }
@@ -3313,8 +3315,8 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
                         IntegerToString(Magic_Number) + "," +
                         IntegerToString((int)TimeCurrent()); // Fix type conversion
       
-      Print("📤 SENDING FILE SIGNAL: ", signalData);
-      Print("   File path: ", COMM_FILE_PATH);
+      LogImportant("📤 SENDING FILE SIGNAL: ", signalData);
+      LogImportant("   File path: ", COMM_FILE_PATH);
       
       // Force close any potentially open handles first
       CleanupFileHandles();
@@ -3323,7 +3325,7 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
       bool success = false;
       for(int attempt = 1; attempt <= FILE_WRITE_RETRY && !success; attempt++)
       {
-         Print("   Attempt ", attempt, " of ", FILE_WRITE_RETRY);
+         LogImportant("   Attempt ", attempt, " of ", FILE_WRITE_RETRY);
          
          // Reset last error before attempting
          ResetLastError();
@@ -3347,26 +3349,26 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
             if(writeResult > 0)
             {
                success = true;
-               Print("✅ Signal sent to hedge EA via file successfully!");
-               Print("   Signal: ", signalType, " ", direction, " ", DoubleToString(volume, 2), " lots");
-               Print("   Adjusted TP: ", DoubleToString(adjustedTP, 5), " SL: ", DoubleToString(adjustedSL, 5));
-               Print("   Bytes written: ", writeResult);
+               LogImportant("✅ Signal sent to hedge EA via file successfully!");
+               LogImportant("   Signal: ", signalType, " ", direction, " ", DoubleToString(volume, 2), " lots");
+               LogImportant("   Adjusted TP: ", DoubleToString(adjustedTP, 5), " SL: ", DoubleToString(adjustedSL, 5));
+               LogImportant("   Bytes written: ", writeResult);
             }
             else
             {
                int writeError = GetLastError();
-               Print("❌ File write failed. Error: ", writeError, " (", GetErrorDescription(writeError), ")");
+               LogImportant("❌ File write failed. Error: ", writeError, " (", GetErrorDescription(writeError), ")");
             }
          }
          else
          {
             int errorCode = GetLastError();
-            Print("❌ File open attempt ", attempt, " failed. Error: ", errorCode, " (", GetErrorDescription(errorCode), ")");
-            Print("   Path: ", COMM_FILE_PATH);
+            LogImportant("❌ File open attempt ", attempt, " failed. Error: ", errorCode, " (", GetErrorDescription(errorCode), ")");
+            LogImportant("   Path: ", COMM_FILE_PATH);
             
             if(attempt < FILE_WRITE_RETRY)
             {
-               Print("   Waiting 200ms before retry...");
+               LogImportant("   Waiting 200ms before retry...");
                Sleep(200); // Increased wait time
                CleanupFileHandles(); // Clean up before retry
             }
@@ -3375,10 +3377,10 @@ void SendHedgeSignal(string signalType, string direction, double volume, double 
       
       if(!success)
       {
-         Print("💥 CRITICAL ERROR: Failed to send signal to hedge EA after ", 
+         LogError("💥 CRITICAL ERROR: Failed to send signal to hedge EA after ",
                IntegerToString(FILE_WRITE_RETRY), " attempts!");
-         Print("   Signal data: ", signalData);
-         Print("   File path: ", COMM_FILE_PATH);
+         LogError("   Signal data: ", signalData);
+         LogError("   File path: ", COMM_FILE_PATH);
          
          // Try alternative method as last resort
          TryAlternativeSignalMethod(signalData);
