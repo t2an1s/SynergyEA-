@@ -14,6 +14,7 @@ input double InpFixedLot = 1.0;   // Fixed lot
 input bool   InpUseRiskPct = true; // Risk % mode
 input double InpRiskPct  = 0.3;   // Risk %
 
+
 //--- trading session inputs (HHMM-HHMM)
 input string MonSession1 = "0000-2359";
 input string MonSession2 = "0000-2359";
@@ -61,6 +62,7 @@ double   PipSize;
 double   ContractSize;
 double   PipValuePerLot;
 double   LotStep;
+
 int      TZOffset=0;
 bool     InSession=false;
 bool     BiasChangedToBullish=false;
@@ -244,6 +246,7 @@ int OnInit()
    PipSize      = SymbolInfoDouble(_Symbol, SYMBOL_POINT);
    ContractSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
    PipValuePerLot = ContractSize * PipSize;
+
    TZOffset     = ParseTZOffset(InpTimeZone);
    return(INIT_SUCCEEDED);
   }
@@ -260,11 +263,14 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
   {
+
    datetime now=TimeCurrent()+TZOffset*3600;
    UpdateSession(now);
    if(InpUseMarketBias) UpdateMarketBias();
    if(InpEnableADXFilter) UpdateADX();
    if(InpUseSynergyScore) UpdateSynergyScore();
+=======
+
    // trading logic will be implemented here
   }
 //+------------------------------------------------------------------+
