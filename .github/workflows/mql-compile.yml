@@ -1,8 +1,8 @@
 name: CI – MQL5 compile check
 
 on:
-  workflow_dispatch:      # manual trigger button
-  pull_request:           # runs when a PR is opened/updated
+  workflow_dispatch:       # manual “Run workflow” button
+  pull_request:            # compile when a PR touches a .mq5
     paths:
       - '**/*.mq5'
 
@@ -11,10 +11,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: fx31337/mql-compile-action@v2
         with:
-          init-platform: true        # ← download portable MT5
-          path: '.'                  # compile every .mq5
-          include: '.'               # look for .mqh includes here
-          syntax-only: true          # stop after syntax check
+          init-platform: true   # download & unpack portable MT5
+          path: '.'            # compile every .mq5 in the repo
+          include: '.'         # search .mqh includes here
+          syntax-only: true    # just a syntax check (no .ex5 saved)
           verbose: true
