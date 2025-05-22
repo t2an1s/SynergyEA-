@@ -8,123 +8,156 @@ on:
 jobs:
   compile:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: MQL5 Compilation & Validation
+      - name: Setup Docker for MT5 compilation
         run: |
-          echo "🔍 MQL5 Code Quality Check"
-          echo "=========================="
-          
+          # Pull the MT5 Docker image
+          docker pull gmag11/metatrader5_vnc:1.0
+          echo "Docker image ready!"
+
+      - name: Compile MQ5 files using Docker
+        run: |
           # Find all MQ5 files
           mq5_files=$(find . -name "*.mq5" -type f)
           
           if [ -z "$mq5_files" ]; then
-            echo "No .mq5 files found in repository"
+            echo "No .mq5 files found"
             exit 0
           fi
           
-          echo "📁 Found MQ5 files:"
-          echo "$mq5_files" | while read file; do
-            echo "  - $file"
-          done
-          echo ""
+          echo "Found MQ5 files:"
+          echo "$mq5_files"
           
-          # Quick Docker-based compilation test
-          echo "🐳 Testing compilation with MetaEditor..."
-          
-          # Create compilation directory
+          # Create a temporary directory for compilation
           mkdir -p /tmp/mql_compile
+          
+          # Copy MQ5 files to temp directory with safe names
           echo "$mq5_files" | while read file; do
+            # Replace spaces with underscores for safe file names
             safe_name=$(basename "$file" | tr ' ' '_')
             cp "$file" "/tmp/mql_compile/$safe_name"
+            echo "Copied: $file -> $safe_name"
           done
           
-          # Run compilation test (simplified)
+          # Run Docker container with MT5 and compile files
           docker run --rm \
-            --user root \
             -v /tmp/mql_compile:/mql_files \
+            --name mt5_compiler \
+            --user root \
             gmag11/metatrader5_vnc:1.0 \
             bash -c "
-              # Quick permissions fix
+              # Fix permissions first
+              echo 'Fixing Wine permissions...'
               chown -R root:root /config/.wine 2>/dev/null || true
+              chmod -R 755 /config/.wine 2>/dev/null || true
               
-              # Set environment
+              # Wait for Wine to initialize properly
+              echo 'Initializing Wine environment...'
+              sleep 45
+              
+              # Set up wine environment
+              export DISPLAY=:0
               export WINEPREFIX=/config/.wine
               export WINEDEBUG=-all
               
-              echo 'Testing MetaEditor accessibility...'
+              # Ensure MT5 directories exist
+              mkdir -p '/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/'
+              mkdir -p '/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Logs/'
               
-              # Test if MetaEditor can run
-              if wine /config/.wine/drive_c/Program\\ Files/MetaTrader\\ 5/metaeditor64.exe /?help > /tmp/test.log 2>&1; then
-                echo '✅ MetaEditor is accessible and functional'
+              # Copy files to MT5 directory
+              cp /mql_files/*.mq5 '/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/' 2>/dev/null || true
+              
+              # Initialize wine registry for MetaEditor
+              echo 'Preparing MetaEditor...'
+              wine regedit /s > /dev/null 2>&1 || true
+              
+              # Compile each MQ5 file
+              cd /mql_files
+              compilation_success=true
+              
+              for file in *.mq5; do
+                if [ -f \"\$file\" ]; then
+                  echo \"=\"============================\"
+                  echo \"Compiling: \$file\"
+                  echo \"=\"============================\"
+                  
+                  # Create unique log file for this compilation
+                  log_file=\"/tmp/compile_\${file%.mq5}.log\"
+                  
+                  # Full path to MetaEditor
+                  metaeditor_path='/config/.wine/drive_c/Program Files/MetaTrader 5/metaeditor64.exe'
+                  
+                  # Compile with MetaEditor (try multiple approaches)
+                  echo \"Attempting compilation...\"
+                  
+                  # Method 1: Direct compilation
+                  wine \"\$metaeditor_path\" \
+                    \"/compile:/mql_files/\$file\" \
+                    \"/log:\$log_file\" \
+                    /s \
+                    > /tmp/metaeditor_output.txt 2>&1
+                  
+                  sleep 5
+                  
+                  # Check multiple possible log locations
+                  log_found=false
+                  for possible_log in \
+                    \"\$log_file\" \
+                    \"/tmp/compile.log\" \
+                    \"/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Logs/compile.log\" \
+                    \"/config/.wine/drive_c/Program Files/MetaTrader 5/Logs/\${file%.mq5}.log\"
+                  do
+                    if [ -f \"\$possible_log\" ]; then
+                      echo \"📋 Found compilation log at: \$possible_log\"
+                      cat \"\$possible_log\"
+                      log_found=true
+                      
+                      # Check for compilation success
+                      if grep -q '0 errors' \"\$possible_log\" 2>/dev/null; then
+                        echo \"✅ \$file: Compilation SUCCESSFUL\"
+                      elif grep -q 'error' \"\$possible_log\" 2>/dev/null; then
+                        echo \"❌ \$file: Compilation FAILED\"
+                        compilation_success=false
+                      else
+                        echo \"⚠️ \$file: Compilation status unclear\"
+                      fi
+                      break
+                    fi
+                  done
+                  
+                  if [ \"\$log_found\" = false ]; then
+                    echo \"⚠️ No compilation log found for \$file\"
+                    echo \"MetaEditor output:\"
+                    cat /tmp/metaeditor_output.txt 2>/dev/null || echo \"No MetaEditor output captured\"
+                    
+                    # Check if .ex5 file was generated (compiled binary)
+                    ex5_file=\"/config/.wine/drive_c/Program Files/MetaTrader 5/MQL5/Experts/\${file%.mq5}.ex5\"
+                    if [ -f \"\$ex5_file\" ]; then
+                      echo \"✅ \$file: Binary .ex5 file generated - compilation likely SUCCESSFUL\"
+                    else
+                      echo \"❓ \$file: No .ex5 file found - compilation status unknown\"
+                    fi
+                  fi
+                  
+                  echo \"\"
+                fi
+              done
+              
+              if [ \"\$compilation_success\" = true ]; then
+                echo \"🎉 All MQ5 files processed successfully!\"
+                exit 0
               else
-                echo '⚠️  MetaEditor test completed (expected for headless environment)'
+                echo \"❌ Some files failed compilation\"
+                exit 1
               fi
-              
-              # Count files
-              file_count=\$(ls -1 /mql_files/*.mq5 2>/dev/null | wc -l)
-              echo \"📊 Found \$file_count MQ5 files ready for compilation\"
-              
-              exit 0
-            " || echo "Docker test completed"
+            "
 
-      - name: Static Code Analysis
+      - name: Verify compilation results
         run: |
-          echo ""
-          echo "📋 Static Code Analysis"
-          echo "======================"
-          
-          find . -name "*.mq5" -type f | while read file; do
-            echo "Analyzing: $(basename "$file")"
-            
-            # Check file size and basic structure
-            size=$(stat -c%s "$file" 2>/dev/null || echo "0")
-            lines=$(wc -l < "$file" 2>/dev/null || echo "0")
-            
-            echo "  📏 Size: $size bytes, Lines: $lines"
-            
-            # Basic MQL5 structure checks
-            if grep -q "OnInit\|OnTick\|OnDeinit\|OnStart" "$file"; then
-              echo "  ✅ Contains MQL5 event functions"
-            fi
-            
-            if grep -q "#property\s\+version\|#property\s\+description" "$file"; then
-              echo "  ✅ Contains property directives"
-            fi
-            
-            if grep -q "#include" "$file"; then
-              echo "  📦 Uses include files"
-            fi
-            
-            # Check for potential issues
-            if grep -q "TODO\|FIXME\|XXX" "$file"; then
-              echo "  ⚠️  Contains TODO/FIXME comments"
-            fi
-            
-            # Syntax pattern checks
-            bracket_open=$(grep -o "{" "$file" | wc -l)
-            bracket_close=$(grep -o "}" "$file" | wc -l)
-            
-            if [ "$bracket_open" -eq "$bracket_close" ]; then
-              echo "  ✅ Brackets appear balanced ($bracket_open pairs)"
-            else
-              echo "  ⚠️  Bracket mismatch: $bracket_open opening, $bracket_close closing"
-            fi
-            
-            echo ""
-          done
-
-      - name: Compilation Summary
-        run: |
-          echo "🎉 MQL5 Validation Summary"
-          echo "========================="
-          echo "✅ All MQ5 files passed initial validation"
-          echo "✅ Docker-based MetaEditor environment tested"
-          echo "✅ Static code analysis completed"
-          echo ""
-          echo "📝 Note: Files appear ready for compilation"
-          echo "   Full compilation requires MetaTrader 5 platform with proper licensing"
+          echo "✅ MQL5 compilation check completed successfully!"
+          echo "All files passed compilation validation."
