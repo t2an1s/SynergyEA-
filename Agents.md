@@ -4,6 +4,31 @@ The two working files/EAs are: 1. SynergyEAPro.mq5, which is the main EA, holdin
 
 Be critical, meticulous when coding and creative at troubleshooting. 
 
+Avoid adding these markings (arrows <<<<<<< or equals ======) in the code you deliver as it causes headaches when it comes to merge script in github.
+
+<<<<<<< 6i061f-codex/fix-synergy-score-and-pivot-issues
+      " Short TP:", DoubleToString(tpShort, 5));
+   }
+
+   // Redraw pivot visuals with latest levels
+   if(ShowPivotLines)
+      DrawPivotLines();
+
+}
+=======
+
+      " Short TP:", DoubleToString(tpShort, 5));
+   }
+
+   // Redraw pivot visuals with latest levels
+   if(ShowPivotLines)
+      DrawPivotLines();
+
+}
+>>>>>>> main
+
+
+
 Priority at this stage is to finalise EA by ensuring its parity with TV Strategy (disregard the Pineconnector piece). Test that all ported features are fully functional. Polish Dashboard to match the original from PropEA <img width="513" alt="Screenshot 2025-05-17 at 10 36 05 AM" src="https://github.com/user-attachments/assets/f9df3bb5-1849-4f24-b89a-5b969fcc9f1a" />
 
 I am open to suggestions for improving the codebase.
