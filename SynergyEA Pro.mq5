@@ -2,8 +2,11 @@
 //|                                       Synergy_Strategy_v1.03.mq5 |
 //|  Streamlined Synergy Strategy + PropEA‑style Hedge Engine (port) |
 //|                                                                  |
-//|  CHANGE LOG (v1.03 – 20‑May‑2025)                                |
+//|  CHANGE LOG (v1.05 – 20‑May‑2025)                                |
 //|   • Added BARS_REQUIRED constant and warm‑up guard               |
+//|   • Warm-up now includes longest indicator periods               |
+//|   • Force-load history for Synergy indicators across timeframes  |
+//|   • Extra debug output when Synergy Score can't be calculated     |
 //|   • Robust history copying & buffer guards (no array overflow)   |
 //|   • Re‑implemented pivot‑scan functions with bounds checks       |
 //|   • Safe CopyBuffer calls with early return on incomplete data   |
@@ -14,7 +17,7 @@
 //+------------------------------------------------------------------+
 #property copyright "t2an1s"
 #property link      "http://www.yourwebsite.com"
-#property version   "1.03"
+#property version   "1.05"
 #property strict
 
 #include <Trade\Trade.mqh>
@@ -1037,8 +1040,18 @@ int OnInit()
    ArraySetAsSeries(TimeSeries, true);
 
    // Compute dynamic history requirement
+   // We must ensure enough bars for the longest indicators (e.g. 200 period MA)
+   int warmupSynergy  = 200;                        // slowest MA period used
+   int warmupADX      = ADXPeriod + ADXLookbackPeriod; // ADX lookback requirement
+   int warmupBias     = HeikinAshiPeriod + 1;          // HA bias lookback
+
    BARS_REQUIRED = MathMax(PivotTPBars + PivotLengthLeft + PivotLengthRight + 5, 100);
-   Print("History warm-up requirement set to ",BARS_REQUIRED," bars");   
+   BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupSynergy);
+   BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupADX);
+   BARS_REQUIRED = MathMax(BARS_REQUIRED, warmupBias);
+
+   Print("History warm-up requirement set to ",BARS_REQUIRED," bars");
+   WarmupIndicatorHistory();
    
    // Create dashboard 
    CreateDashboard();
@@ -1890,60 +1903,84 @@ double CalculateSynergyScore()
    bool   hasData = false;           // at least one TF must contribute
 
    // -------- M5 --------
-   if(UseTF5min &&
-      CopyOk(2,CopyBuffer(rsiHandle_M5 ,0,0,2,rsiBuffer_M5 )) &&
-      CopyOk(2,CopyBuffer(maFastHandle_M5,0,0,2,maFastBuffer_M5)) &&
-      CopyOk(2,CopyBuffer(maSlowHandle_M5,0,0,2,maSlowBuffer_M5)) &&
-      CopyOk(2,CopyBuffer(macdHandle_M5 ,0,0,2,macdBuffer_M5 )) &&
-      CopyOk(2,CopyBuffer(macdHandle_M5 ,0,1,2,macdPrevBuffer_M5)))
+   if(UseTF5min)
    {
-      score += SynergyAdd(rsiBuffer_M5[0]  > 50, rsiBuffer_M5[0]  < 50,
-                          RSI_Weight,        Weight_M5);
-      score += SynergyAdd(maFastBuffer_M5[0] > maSlowBuffer_M5[0],
-                          maFastBuffer_M5[0] < maSlowBuffer_M5[0],
-                          Trend_Weight,      Weight_M5);
-      score += SynergyAdd(macdBuffer_M5[0]  > macdPrevBuffer_M5[0],
-                          macdBuffer_M5[0]  < macdPrevBuffer_M5[0],
-                          MACDV_Slope_Weight,Weight_M5);
-      hasData = true;
+      int g1 = CopyBuffer(rsiHandle_M5 ,0,0,2,rsiBuffer_M5 );
+      int g2 = CopyBuffer(maFastHandle_M5,0,0,2,maFastBuffer_M5);
+      int g3 = CopyBuffer(maSlowHandle_M5,0,0,2,maSlowBuffer_M5);
+      int g4 = CopyBuffer(macdHandle_M5 ,0,0,2,macdBuffer_M5 );
+      int g5 = CopyBuffer(macdHandle_M5 ,0,1,2,macdPrevBuffer_M5);
+      if(CopyOk(2,g1) && CopyOk(2,g2) && CopyOk(2,g3) && CopyOk(2,g4) && CopyOk(2,g5))
+      {
+         score += SynergyAdd(rsiBuffer_M5[0]  > 50, rsiBuffer_M5[0]  < 50,
+                             RSI_Weight,        Weight_M5);
+         score += SynergyAdd(maFastBuffer_M5[0] > maSlowBuffer_M5[0],
+                             maFastBuffer_M5[0] < maSlowBuffer_M5[0],
+                             Trend_Weight,      Weight_M5);
+         score += SynergyAdd(macdBuffer_M5[0]  > macdPrevBuffer_M5[0],
+                             macdBuffer_M5[0]  < macdPrevBuffer_M5[0],
+                             MACDV_Slope_Weight,Weight_M5);
+         hasData = true;
+      }
+      else
+      {
+         Print("DEBUG: M5 data missing - rsi:",g1," fast:",g2," slow:",g3,
+               " macd:",g4," prev:",g5);
+      }
    }
 
    // -------- M15 --------
-   if(UseTF15min &&
-      CopyOk(2,CopyBuffer(rsiHandle_M15 ,0,0,2,rsiBuffer_M15 )) &&
-      CopyOk(2,CopyBuffer(maFastHandle_M15,0,0,2,maFastBuffer_M15)) &&
-      CopyOk(2,CopyBuffer(maSlowHandle_M15,0,0,2,maSlowBuffer_M15)) &&
-      CopyOk(2,CopyBuffer(macdHandle_M15 ,0,0,2,macdBuffer_M15 )) &&
-      CopyOk(2,CopyBuffer(macdHandle_M15 ,0,1,2,macdPrevBuffer_M15)))
+   if(UseTF15min)
    {
-      score += SynergyAdd(rsiBuffer_M15[0]  > 50, rsiBuffer_M15[0]  < 50,
-                          RSI_Weight,        Weight_M15);
-      score += SynergyAdd(maFastBuffer_M15[0] > maSlowBuffer_M15[0],
-                          maFastBuffer_M15[0] < maSlowBuffer_M15[0],
-                          Trend_Weight,       Weight_M15);
-      score += SynergyAdd(macdBuffer_M15[0]  > macdPrevBuffer_M15[0],
-                          macdBuffer_M15[0]  < macdPrevBuffer_M15[0],
-                          MACDV_Slope_Weight, Weight_M15);
-      hasData = true;
+      int h1 = CopyBuffer(rsiHandle_M15 ,0,0,2,rsiBuffer_M15 );
+      int h2 = CopyBuffer(maFastHandle_M15,0,0,2,maFastBuffer_M15);
+      int h3 = CopyBuffer(maSlowHandle_M15,0,0,2,maSlowBuffer_M15);
+      int h4 = CopyBuffer(macdHandle_M15 ,0,0,2,macdBuffer_M15 );
+      int h5 = CopyBuffer(macdHandle_M15 ,0,1,2,macdPrevBuffer_M15);
+      if(CopyOk(2,h1) && CopyOk(2,h2) && CopyOk(2,h3) && CopyOk(2,h4) && CopyOk(2,h5))
+      {
+         score += SynergyAdd(rsiBuffer_M15[0]  > 50, rsiBuffer_M15[0]  < 50,
+                             RSI_Weight,        Weight_M15);
+         score += SynergyAdd(maFastBuffer_M15[0] > maSlowBuffer_M15[0],
+                             maFastBuffer_M15[0] < maSlowBuffer_M15[0],
+                             Trend_Weight,       Weight_M15);
+         score += SynergyAdd(macdBuffer_M15[0]  > macdPrevBuffer_M15[0],
+                             macdBuffer_M15[0]  < macdPrevBuffer_M15[0],
+                             MACDV_Slope_Weight, Weight_M15);
+         hasData = true;
+      }
+      else
+      {
+         Print("DEBUG: M15 data missing - rsi:",h1," fast:",h2," slow:",h3,
+               " macd:",h4," prev:",h5);
+      }
    }
 
    // -------- H1 --------
-   if(UseTF1hour &&
-      CopyOk(2,CopyBuffer(rsiHandle_H1 ,0,0,2,rsiBuffer_H1 )) &&
-      CopyOk(2,CopyBuffer(maFastHandle_H1,0,0,2,maFastBuffer_H1)) &&
-      CopyOk(2,CopyBuffer(maSlowHandle_H1,0,0,2,maSlowBuffer_H1)) &&
-      CopyOk(2,CopyBuffer(macdHandle_H1 ,0,0,2,macdBuffer_H1 )) &&
-      CopyOk(2,CopyBuffer(macdHandle_H1 ,0,1,2,macdPrevBuffer_H1)))
+   if(UseTF1hour)
    {
-      score += SynergyAdd(rsiBuffer_H1[0]  > 50, rsiBuffer_H1[0]  < 50,
-                          RSI_Weight,        Weight_H1);
-      score += SynergyAdd(maFastBuffer_H1[0] > maSlowBuffer_H1[0],
-                          maFastBuffer_H1[0] < maSlowBuffer_H1[0],
-                          Trend_Weight,       Weight_H1);
-      score += SynergyAdd(macdBuffer_H1[0]  > macdPrevBuffer_H1[0],
-                          macdBuffer_H1[0]  < macdPrevBuffer_H1[0],
-                          MACDV_Slope_Weight, Weight_H1);
-      hasData = true;
+      int k1 = CopyBuffer(rsiHandle_H1 ,0,0,2,rsiBuffer_H1 );
+      int k2 = CopyBuffer(maFastHandle_H1,0,0,2,maFastBuffer_H1);
+      int k3 = CopyBuffer(maSlowHandle_H1,0,0,2,maSlowBuffer_H1);
+      int k4 = CopyBuffer(macdHandle_H1 ,0,0,2,macdBuffer_H1 );
+      int k5 = CopyBuffer(macdHandle_H1 ,0,1,2,macdPrevBuffer_H1);
+      if(CopyOk(2,k1) && CopyOk(2,k2) && CopyOk(2,k3) && CopyOk(2,k4) && CopyOk(2,k5))
+      {
+         score += SynergyAdd(rsiBuffer_H1[0]  > 50, rsiBuffer_H1[0]  < 50,
+                             RSI_Weight,        Weight_H1);
+         score += SynergyAdd(maFastBuffer_H1[0] > maSlowBuffer_H1[0],
+                             maFastBuffer_H1[0] < maSlowBuffer_H1[0],
+                             Trend_Weight,       Weight_H1);
+         score += SynergyAdd(macdBuffer_H1[0]  > macdPrevBuffer_H1[0],
+                             macdBuffer_H1[0]  < macdPrevBuffer_H1[0],
+                             MACDV_Slope_Weight, Weight_H1);
+         hasData = true;
+      }
+      else
+      {
+         Print("DEBUG: H1 data missing - rsi:",k1," fast:",k2," slow:",k3,
+               " macd:",k4," prev:",k5);
+      }
    }
 
    // preserve previous reading if *no* timeframe had enough data
@@ -2148,6 +2185,23 @@ void ReleaseADXFilter()
 {
    if(adxHandle != INVALID_HANDLE)
       IndicatorRelease(adxHandle);
+}
+
+//+------------------------------------------------------------------+
+//| Force-load history for all synergy timeframes                     |
+//+------------------------------------------------------------------+
+void WarmupIndicatorHistory()
+{
+   ENUM_TIMEFRAMES tfs[] = {PERIOD_M5, PERIOD_M15, PERIOD_H1};
+   MqlRates tmp[];
+   for(int i=0;i<ArraySize(tfs);i++)
+   {
+      int need = BARS_REQUIRED;
+      ResetLastError();
+      int got = CopyRates(_Symbol, tfs[i], 0, need, tmp);
+      Print("Warmup ",EnumToString(tfs[i]),": requested ",need," got ",got,
+            ", err ",GetLastError());
+   }
 }
 
 //+------------------------------------------------------------------+
