@@ -1171,7 +1171,6 @@ void OnTick()
 
    // 1) update dashboard & visuals every tick
    UpdateDashboard();
-   if(ShowPivotLines)  DrawPivotLines();
    if(ShowMarketBias)  ShowMarketBiasIndicator();
 
    // 2) CHECK FOR NEW BAR - CRITICAL FOR BAR CLOSE TRADING
@@ -1288,7 +1287,8 @@ if(UseSynergyScore) {
          // Correct way to check RSI values directly:
          double rsiData[];
          ArraySetAsSeries(rsiData, true);
-         int copied = CopyBuffer(rsiHandle_M5, 0, 0, 1, rsiData);
+         // Inspect previous closed bar value
+         int copied = CopyBuffer(rsiHandle_M5, 0, 1, 1, rsiData);
          if(copied == 1) {
             Print("Direct RSI M5 check - Current value: ", DoubleToString(rsiData[0], 2));
          } else {
@@ -1462,7 +1462,10 @@ if(UseSynergyScore) {
       " Short TP:", DoubleToString(tpShort, 5));
    }
 
- 
+   // Redraw pivot visuals with latest levels
+   if(ShowPivotLines)
+      DrawPivotLines();
+
 }
 
 //+------------------------------------------------------------------+
@@ -1916,13 +1919,14 @@ double CalculateSynergyScore()
       int g5 = CopyBuffer(macdHandle_M5 ,0,1,2,macdPrevBuffer_M5);
       if(CopyOk(2,g1) && CopyOk(2,g2) && CopyOk(2,g3) && CopyOk(2,g4) && CopyOk(2,g5))
       {
-         score += SynergyAdd(rsiBuffer_M5[0]  > 50, rsiBuffer_M5[0]  < 50,
+         // Use previous closed bar (index 1) to match TradingView logic
+         score += SynergyAdd(rsiBuffer_M5[1]  > 50, rsiBuffer_M5[1]  < 50,
                              RSI_Weight,        Weight_M5);
-         score += SynergyAdd(maFastBuffer_M5[0] > maSlowBuffer_M5[0],
-                             maFastBuffer_M5[0] < maSlowBuffer_M5[0],
+         score += SynergyAdd(maFastBuffer_M5[1] > maSlowBuffer_M5[1],
+                             maFastBuffer_M5[1] < maSlowBuffer_M5[1],
                              Trend_Weight,      Weight_M5);
-         score += SynergyAdd(macdBuffer_M5[0]  > macdPrevBuffer_M5[0],
-                             macdBuffer_M5[0]  < macdPrevBuffer_M5[0],
+         score += SynergyAdd(macdBuffer_M5[1]  > macdPrevBuffer_M5[1],
+                             macdBuffer_M5[1]  < macdPrevBuffer_M5[1],
                              MACDV_Slope_Weight,Weight_M5);
          hasData = true;
       }
@@ -1943,13 +1947,14 @@ double CalculateSynergyScore()
       int h5 = CopyBuffer(macdHandle_M15 ,0,1,2,macdPrevBuffer_M15);
       if(CopyOk(2,h1) && CopyOk(2,h2) && CopyOk(2,h3) && CopyOk(2,h4) && CopyOk(2,h5))
       {
-         score += SynergyAdd(rsiBuffer_M15[0]  > 50, rsiBuffer_M15[0]  < 50,
+         // Use bar-1 values for parity with TradingView
+         score += SynergyAdd(rsiBuffer_M15[1]  > 50, rsiBuffer_M15[1]  < 50,
                              RSI_Weight,        Weight_M15);
-         score += SynergyAdd(maFastBuffer_M15[0] > maSlowBuffer_M15[0],
-                             maFastBuffer_M15[0] < maSlowBuffer_M15[0],
+         score += SynergyAdd(maFastBuffer_M15[1] > maSlowBuffer_M15[1],
+                             maFastBuffer_M15[1] < maSlowBuffer_M15[1],
                              Trend_Weight,       Weight_M15);
-         score += SynergyAdd(macdBuffer_M15[0]  > macdPrevBuffer_M15[0],
-                             macdBuffer_M15[0]  < macdPrevBuffer_M15[0],
+         score += SynergyAdd(macdBuffer_M15[1]  > macdPrevBuffer_M15[1],
+                             macdBuffer_M15[1]  < macdPrevBuffer_M15[1],
                              MACDV_Slope_Weight, Weight_M15);
          hasData = true;
       }
@@ -1970,13 +1975,14 @@ double CalculateSynergyScore()
       int k5 = CopyBuffer(macdHandle_H1 ,0,1,2,macdPrevBuffer_H1);
       if(CopyOk(2,k1) && CopyOk(2,k2) && CopyOk(2,k3) && CopyOk(2,k4) && CopyOk(2,k5))
       {
-         score += SynergyAdd(rsiBuffer_H1[0]  > 50, rsiBuffer_H1[0]  < 50,
+         // Previous closed bar values
+         score += SynergyAdd(rsiBuffer_H1[1]  > 50, rsiBuffer_H1[1]  < 50,
                              RSI_Weight,        Weight_H1);
-         score += SynergyAdd(maFastBuffer_H1[0] > maSlowBuffer_H1[0],
-                             maFastBuffer_H1[0] < maSlowBuffer_H1[0],
+         score += SynergyAdd(maFastBuffer_H1[1] > maSlowBuffer_H1[1],
+                             maFastBuffer_H1[1] < maSlowBuffer_H1[1],
                              Trend_Weight,       Weight_H1);
-         score += SynergyAdd(macdBuffer_H1[0]  > macdPrevBuffer_H1[0],
-                             macdBuffer_H1[0]  < macdPrevBuffer_H1[0],
+         score += SynergyAdd(macdBuffer_H1[1]  > macdPrevBuffer_H1[1],
+                             macdBuffer_H1[1]  < macdPrevBuffer_H1[1],
                              MACDV_Slope_Weight, Weight_H1);
          hasData = true;
       }
