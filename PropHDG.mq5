@@ -21,6 +21,7 @@
 #property strict
 
 #include <Trade\Trade.mqh>
+#include "MQL5/core.mqh"
 CTrade trade;
 
 //────────────────────────────────────────────────────────────────────
