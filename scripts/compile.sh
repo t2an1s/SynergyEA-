@@ -62,5 +62,7 @@ for src in "${srcs[@]}"; do
   echo "🛠   Compiling ${base}.mq5 …"
 "$CXRUN" --bottle "$BOTTLE" "C:\\Program Files\\MetaTrader 5\\MetaEditor64.exe" \
          /compile:"$src" /log:"$LOG_DIR/${base}.log"
+# NEW: copy the resulting .ex5 back into repo's Experts/
+  cp "$(dirname "$src")"/*.ex5 "$MQ5_DIR" 2>/dev/null || true
 done
 echo "✅  All builds complete — check *.ex5 files in Experts/."
