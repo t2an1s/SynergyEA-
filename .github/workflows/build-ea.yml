@@ -21,5 +21,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: EA-binaries
-          path: Experts/*.ex5
+          path: path:"**/*.ex5"        # <-- change
           retention-days: 14          # keep artefacts 2 weeks
