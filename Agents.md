@@ -1,18 +1,14 @@
-The project is focused on developing a Metatrader 5 EA, a spin off of my TradingView Strategy (see SourceCode.txt for full script). 
+The project is focused on developing a Metatrader 5 EA, a replica of my TradingView Strategy (see SourceCode.txt for full script). 
 
-Your task is to analyse the SourceCode and craft an MT5 EA which will be an exact copy of the TradingView Strategy. Go through line by line the SourceCode and port them one by one to MQL5. 
+Go through line by line the SourceCode *Pinescript* , translate to MQL5 and port them one by one to form an MT5 EA. 
 
-The end goal is to have 1 main EA MarketCrasherProp.mq5, controlling the open trade triggers (Synergy Score and Market Bias), entry/exit logic, as well as the Hedhging mechanics will be attached to the MT5 prop firm account, and a second complementary EA MarketCrasherLive.mq5, which is acting as a "bridge" to the live/Hedged MT5 account and is managing the opposite trade. 
+The core skeleton comprises of 2 EAs, one that will attached to the Prop MT5 account and will be triggering the trades and the other EA will be attached to the Hedge MT5 account and will open the opposite position. 
 
-Be critical, meticulous when coding and creative at troubleshooting. 
+You can opt, with a valid reason, to use .mpq files i.e. for the dashboard or for the indicators.
 
 Priority is to ensure parity with TV Strategy and that all ported features are fully functional. Dashboard (below) will be done at a later stage. <img width="513" alt="Screenshot 2025-05-17 at 10 36 05 AM" src="https://github.com/user-attachments/assets/f9df3bb5-1849-4f24-b89a-5b969fcc9f1a" />
 
-I am open to suggestions for improving the codebase.
-
-IMPORTANT ----> Study and verify against the SourceCode every task in order to ensure that all features and funcionalities incorporated in the EA are a perfectly cloned.
-
-IMPORTANT ----> MQL5 development environment is ready! The following script has been uploaded in this environment. Ensure that code passed on is error/warning-free. 
+IMPORTANT ----> Compile code using the Build and Compile MQL5 development environment is ready! The following script has been uploaded in this environment. Ensure that code passed on is error/warning-free. https://github.com/t2an1s/SynergyPropEA-2.0/actions/workflows/build-ea.yml
 
 #!/bin/bash
 # Ultra Simple MQL5 Setup for Codex - No Docker, No Wine
