@@ -65,6 +65,14 @@ OUT_UNIX_PATH="$MQ5_DIR/${base}.ex5"
 OUT_WIN_PATH=$("$CXRUN" --bottle "$BOTTLE" winepath -w "$OUT_UNIX_PATH" | tr -d '\r')
 "$CXRUN" --bottle "$BOTTLE" "C:\\Program Files\\MetaTrader 5\\MetaEditor64.exe" \
          /compile:"$src;$OUT_WIN_PATH" \
-         /log:"$LOG_DIR/${base}.log"
+# ── DEBUG: list every .ex5 under the bottle's drive_c ──────────────
+echo "🕵️  Searching bottle for ${base}.ex5 …"
+find "$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE/drive_c" \
+     -iname "${base}.ex5" -print
+
+# ── COPY: any matches into repo's Experts/ ─────────────────────────
+find "$HOME/Library/Application Support/CrossOver/Bottles/$BOTTLE/drive_c" \
+     -iname "${base}.ex5" -exec cp -v {} "$MQ5_DIR" \; || true         /log:"$LOG_DIR/${base}.log"
+
 done
 echo "✅  All builds complete — check *.ex5 files in Experts/."
