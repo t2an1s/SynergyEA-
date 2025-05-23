@@ -2,13 +2,15 @@ name: Build & Package MQ5 EAs
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+  workflow_dispatch:         # manual trigger button
+
+concurrency: build-ea-${{ github.ref }}   # cancel previous build on same branch
 
 jobs:
   build:
-    runs-on: self-hosted    # MUST match the label on your Mac runner
+    runs-on: [self-hosted, crossover, mt5]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -20,3 +22,4 @@ jobs:
         with:
           name: EA-binaries
           path: Experts/*.ex5
+          retention-days: 14          # keep artefacts 2 weeks
