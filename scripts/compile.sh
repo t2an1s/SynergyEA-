@@ -56,13 +56,22 @@ if [ ${#srcs[@]} -eq 0 ]; then
   echo "⚠️  No .mq5 files found in $MQ5_DIR" >&2
   exit 1
 fi
-
+  
 for src in "${srcs[@]}"; do
   base=$(basename "$src" .mq5)
   echo "🛠   Compiling ${base}.mq5 …"
+# Convert the desired output path to a Windows form the bottle understands
+OUT_UNIX_PATH="$MQ5_DIR/${base}.ex5"
+OUT_WIN_PATH=$("$CXRUN" --bottle "$BOTTLE" winepath -w "$OUT_UNIX_PATH" | tr -d '\r')
+  
 "$CXRUN" --bottle "$BOTTLE" "C:\\Program Files\\MetaTrader 5\\MetaEditor64.exe" \
+<<<<<<< HEAD
          /compile:"$src" /log:"$LOG_DIR/${base}.log"
 # NEW: copy the resulting .ex5 back into repo's Experts/
   cp "$(dirname "$src")"/*.ex5 "$MQ5_DIR" 2>/dev/null || true
+=======
+         /compile:"$src;$OUT_WIN_PATH" \
+         /log:"$LOG_DIR/${base}.log"
+>>>>>>> 64c4078 (build: direct MetaEditor output into Experts/)
 done
 echo "✅  All builds complete — check *.ex5 files in Experts/."
