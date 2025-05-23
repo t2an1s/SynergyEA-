@@ -6,9 +6,12 @@ Priority is to ensure parity with TV Strategy and that all ported features are f
 
 You are granted permission to access all repo contents, to create directories, folders, files, move files, as well as to delete (upon prior OK from me). Any of these actions must be included and reasoned in your summary.
 
-Code to be pushed and merged (if required) upon finishing the task. Add confirmation in your summary (a green OK tick). No need to provide me with a PR.
+You are granted access to run any actions and workflows set in this repository.
 
-IMPORTANT ----> Compile code using the workflow/action "Build & Package MQ5 EAs". Note that, even though the scrript -below- shows that succesfully compiled 
+You are granted access to create Pull Request as soon as you complete the task, access Pull Requests on github, resolve conflicts (if any), merge and commit.
+
+IMPORTANT ----> Code that you deliver must be error/warning-free.
+Compile code before pushing it by using the compiler found as workflow/action "Build & Package MQ5 EAs". Note, even though the scrript -below- shows that succesfully compiled 
 files will be uploaded to Expert folder, due to a bug, it´s not happening. So, disregard warning.
 
 on:
@@ -34,6 +37,3 @@ jobs:
           name: EA-binaries
           path: path:"**/*.ex5"        
           retention-days: 14          
-          
-          
-Code that you deliver must be error/warning-free.
