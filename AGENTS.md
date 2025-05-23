@@ -1,4 +1,4 @@
-The project is about developing a Metatrader 5 EA, a replica of my TradingView Strategy (see SourceCode.txt for full script). Go through line by line the SourceCode *Pinescript* , translate to MQL5 and port them one by one to form an MT5 EA. 
+The project is about developing a Metatrader 5 EA, a replica of my TradingView Strategy (see SourceCode.txt for full script). Go through line by line the SourceCode *Pinescript* , translate to MQL5 and port them one by one to form an MT5 EA. No simplifications or additions to the code, pure translated mirror!
 
 The core skeleton comprises of 2 EAs, one that will attached to the Prop MT5 account and will be triggering the trades and the other EA will be attached to the Hedge MT5 account and will open the opposite position. You may opt, with a valid reason, to use .mpq files i.e. for the dashboard or for the indicators.
 
